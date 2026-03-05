@@ -21,7 +21,7 @@ void Calibrator::reset()
 	m_mag = { 0 };
 	m_gyro = { 0 };
 
-	m_fusion.init();
+	m_ahrs.init();
 }
 
 void Calibrator::add_raw_data(const int16_t(&data)[9])
@@ -45,7 +45,7 @@ void Calibrator::add_raw_data(const int16_t(&data)[9])
 		float magdiff = sqrtf(x * x + y * y + z * z);
 		//printf("magdiff = %.2f\n", magdiff);
 		if (magdiff > 0.8f) {
-			m_fusion.init();
+			m_ahrs.init();
 			m_oversample_countdown = OVERSAMPLE_RATIO;
 			m_force_orientation_countdown = s_force_orientation_countdown_max;
 		}
@@ -54,7 +54,7 @@ void Calibrator::add_raw_data(const int16_t(&data)[9])
 	if (m_force_orientation_countdown > 0) {
 		if (--m_force_orientation_countdown == 0) {
 			//printf("delayed forcible orientation reset\n");
-			m_fusion.init();
+			m_ahrs.init();
 			m_oversample_countdown = OVERSAMPLE_RATIO;
 		}
 	}
@@ -104,8 +104,8 @@ void Calibrator::add_raw_data(const int16_t(&data)[9])
 		m_mag.Bc[0] *= ratio;
 		m_mag.Bc[1] *= ratio;
 		m_mag.Bc[2] *= ratio;
-		m_fusion.update(&m_accel, &m_mag, &m_gyro, m_magcal.m_isValid, m_magcal.m_cal_B);
-		m_fusion.read(&m_current_orientation);
+		m_ahrs.update(&m_accel, &m_mag, &m_gyro, m_magcal.m_isValid, m_magcal.m_cal_B);
+		m_ahrs.read(&m_current_orientation);
 	}
 }
 

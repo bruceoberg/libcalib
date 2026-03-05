@@ -20,13 +20,13 @@ public:
 
 private:
 	int m_oversample_countdown;         // countdown of oversampling in add_raw_data()
-	int m_force_orientation_countdown;  // countdown to reseting fusion in add_raw_data()
+	int m_force_orientation_countdown;  // countdown to reseting m_ahrs in add_raw_data()
 
 	AccelSensor_t m_accel;
 	MagSensor_t   m_mag;
 	GyroSensor_t  m_gyro;
 
-	libcalib::Nxp m_fusion;
+	libcalib::Nxp m_ahrs;				// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
 
 	static const int s_force_orientation_countdown_max = 240;
 };

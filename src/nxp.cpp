@@ -24,7 +24,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// This is the file that contains the fusion routines.  It is STRONGLY RECOMMENDED
+// This is the file that contains the NXP/fusion routines.  It is STRONGLY RECOMMENDED
 // that the casual developer NOT TOUCH THIS FILE.  The mathematics behind this file
 // is extremely complex, and it will be very easy (almost inevitable) that you screw
 // it up.
