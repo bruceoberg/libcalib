@@ -8,14 +8,6 @@
 namespace libcalib
 {
 
-constexpr float RadFromDeg(float deg)
-{
-	return (M_PI * deg) / 180.0f;
-}
-
-template<uint32_t N, class T>
-constexpr uint32_t DIM(T(&)[N]) { return N; }
-
 // a class which breaks a sphere into 100 partitions of roughly equal
 //	size and radius. details here:
 //		https://etna.mcs.kent.edu/vol.25.2006/pp309-327.dir/pp309-327.html
@@ -30,7 +22,7 @@ struct SpherePartition
 
 	static const int s_regionMax = 100;
 
-	Point_t	m_mpRegionAnchor[s_regionMax];
+	SPoint	m_mpRegionAnchor[s_regionMax];
 	
 	int RegionFromXyz(float x, float y, float z);
 
@@ -94,7 +86,7 @@ SpherePartition::SpherePartition()
 	m_mpRegionAnchor[0].y = 0.0f;
 	m_mpRegionAnchor[0].z = 1.0f;
 
-	Point_t * pAnchor = &m_mpRegionAnchor[1];
+	SPoint * pAnchor = &m_mpRegionAnchor[1];
 
 	// NOTE: skipping first and last collars (the poles);
 
@@ -173,7 +165,7 @@ MagQuality::MagQuality()
 {
 }
 
-void MagQuality::ensure_valid(const MagCalibrator & magcal)
+void MagQuality::Ensure(const MagCalibrator & magcal)
 {
 	if (m_isValid)
 		return;
@@ -184,7 +176,7 @@ void MagQuality::ensure_valid(const MagCalibrator & magcal)
 	for (int i = 0; i < magcal.m_cSamp; i++)
 	{
 		const MagSample & samp = magcal.m_aSamp[i];
-		const Point_t & pntCal = samp.m_pntCal;
+		const SPoint & pntCal = samp.m_pntCal;
 		float x = pntCal.x;
 		float y = pntCal.y;
 		float z = pntCal.z;

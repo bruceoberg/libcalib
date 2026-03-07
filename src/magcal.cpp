@@ -88,14 +88,14 @@ MagCalibrator::MagCalibrator()
 	m_cal_B = 50.0f;
 }
 
-int MagCalibrator::choose_discard_magcal()
+int MagCalibrator::ISampChooseDiscard()
 {
 	float dx, dy, dz;
 	float x, y, z;
 	float distsq;
 	float minsum = FLT_MAX;
 	int i, j, minindex = 0;
-	Point_t Bc;
+	SPoint Bc;
 	float gaps, field, error, errormax;
 
 	// When enough data is collected (gaps error is low), assume we
@@ -149,9 +149,9 @@ int MagCalibrator::choose_discard_magcal()
 }
 
 
-void MagCalibrator::add_magcal_data(const Point_t & BpFast, Point_t * pBcFast)
+void MagCalibrator::AddMagPoint(const SPoint & BpFast, SPoint * pBcFast)
 {
-	int i = m_cSamp;
+	int iSampDest = m_cSamp;
 
 	// If the buffer is full, we must choose which old data to discard.
 	// We must choose wisely!  Throwing away the wrong data could prevent
@@ -163,11 +163,11 @@ void MagCalibrator::add_magcal_data(const Point_t & BpFast, Point_t * pBcFast)
 	// But if done well, purging bad data has massive potential to
 	// improve results.  The trick is telling the good from the bad while
 	// still in the process of learning what's good...
-	if (i >= MAGBUFFSIZE)
+	if (iSampDest >= s_cSampMax)
 	{
-		i = choose_discard_magcal();
-		if (i < 0 || i >= MAGBUFFSIZE) {
-			i = 0;
+		iSampDest = ISampChooseDiscard();
+		if (iSampDest < 0 || iSampDest >= s_cSampMax) {
+			iSampDest = 0;
 		}
 	}
 	else
@@ -177,19 +177,19 @@ void MagCalibrator::add_magcal_data(const Point_t & BpFast, Point_t * pBcFast)
 
 	// add it to the calibration buffer
 
-	m_aSamp[i].m_pntRaw = BpFast;
-	apply_calibration(i);
-	*pBcFast = m_aSamp[i].m_pntCal;
+	m_aSamp[iSampDest].m_pntRaw = BpFast;
+	ApplyCalibration(iSampDest);
+	*pBcFast = m_aSamp[iSampDest].m_pntCal;
 
 	// NOTE: we do not update our quality metrics on every new sample.
 	//	instead, we update them after every new calibration is accepted
 	//	or when specifically asked to.
 
-	m_quality.set_invalid();
+	m_quality.Reset();
 }
 
 // run the magnetic calibration
-bool MagCalibrator::get_new_calibration()
+bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 {
 	int i, j;			// loop counters
 	int isolver;		// magnetic solver used
@@ -239,22 +239,33 @@ bool MagCalibrator::get_new_calibration()
 				m_errorFitAged = 2.0f;
 			}
 			m_cal_B = m_calNext_B;
+			float cal_V_Diff[3];
 			for (i = X; i <= Z; i++) {
+				cal_V_Diff[i] = m_calNext_V[i] - m_cal_V[i];
 				m_cal_V[i] = m_calNext_V[i];
 				for (j = X; j <= Z; j++) {
 					m_cal_invW[i][j] = m_calNext_invW[i][j];
 				}
 			}
 
+			if (pSMagChange)
+			{
+				const float & x = cal_V_Diff[0];
+				const float & y = cal_V_Diff[1];
+				const float & z = cal_V_Diff[2];
+				
+				*pSMagChange = sqrtf(x * x + y * y + z * z);
+			}
+
 			// re-apply calibration to all our samples and update our quality metrics
 
 			for (i = 0; i < m_cSamp; ++i)
 			{
-				apply_calibration(i);
+				ApplyCalibration(i);
 			}
 
-			m_quality.set_invalid();
-			m_quality.ensure_valid(*this);
+			m_quality.Reset();
+			m_quality.Ensure(*this);
 
 			return true; // indicates new calibration applied
 		}
@@ -297,11 +308,11 @@ void MagCalibrator::UpdateCalibration4INV()
 	}
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	Point_t BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_aSamp[0].m_pntRaw;
 
 	// use from MINEQUATIONS up to MAXEQUATIONS entries from magnetic buffer to compute matrices
 	for (j = 0; j < m_cSamp; j++) {
-		const Point_t & BpCur = m_aSamp[j].m_pntRaw;
+		const SPoint & BpCur = m_aSamp[j].m_pntRaw;
 
 		// store scaled and offset fBp[XYZ] in m_vecA[0-2] and fBp[XYZ]^2 in m_vecA[3-5]
 		for (k = X; k <= Z; k++) {
@@ -426,7 +437,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 	fscaling = 1.0F / DEFAULTB;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	Point_t BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_aSamp[0].m_pntRaw;
 
 	// zero the on and above diagonal elements of the 7x7 symmetric measurement matrix m_matA
 	for (m = 0; m < 7; m++) {
@@ -437,7 +448,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 
 	// place from MINEQUATIONS to MAXEQUATIONS entries into product matrix m_matA
 	for (j = 0; j < m_cSamp; j++) {
-		const Point_t& BpCur = m_aSamp[j].m_pntRaw;
+		const SPoint& BpCur = m_aSamp[j].m_pntRaw;
 
 		// apply the offset and scaling and store in m_vecA
 		for (k = X; k <= Z; k++) {
@@ -542,7 +553,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 	fscaling = 1.0F / DEFAULTB;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	Point_t BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_aSamp[0].m_pntRaw;
 
 	// zero the on and above diagonal elements of the 10x10 symmetric measurement matrix m_matA
 	for (m = 0; m < 10; m++) {
@@ -553,7 +564,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 
 	// sum between MINEQUATIONS to MAXEQUATIONS entries into the 10x10 product matrix m_matA
 	for (j = 0; j < m_cSamp; j++) {
-		const Point_t& BpCur = m_aSamp[j].m_pntRaw;
+		const SPoint& BpCur = m_aSamp[j].m_pntRaw;
 
 		// apply the fixed offset and scaling and enter into m_vecA[6-8]
 		for (k = X; k <= Z; k++) {
@@ -698,7 +709,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 	}
 }
 
-void MagCalibrator::apply_calibration(int iSamp)
+void MagCalibrator::ApplyCalibration(int iSamp)
 {
 	MagSample * pSamp = &m_aSamp[iSamp];
 

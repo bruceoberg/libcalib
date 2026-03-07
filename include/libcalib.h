@@ -2,6 +2,9 @@
 
 #include "libcalib_common.h"
 #include "libcalib_magcal.h"
+#include "libcalib_fusion.h"
+#include "libcalib_mahony.h"
+#include "libcalib_nxp.h"
 
 namespace libcalib
 {
@@ -16,17 +19,16 @@ public:
 	void add_raw_data(const int16_t(&data)[9]);
 
 	MagCalibrator m_magcal;
-	Quaternion_t m_current_orientation;
+	SQuat m_current_orientation;
 
 private:
-	int m_oversample_countdown;         // countdown of oversampling in add_raw_data()
 	int m_force_orientation_countdown;  // countdown to reseting m_ahrs in add_raw_data()
 
-	AccelSensor_t m_accel;
-	MagSensor_t   m_mag;
-	GyroSensor_t  m_gyro;
+	CNxp m_nxp;	
+	CFusion m_fusion;
+	CMahony m_mahony;
 
-	libcalib::Nxp m_ahrs;				// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
+	CMahony m_ahrs;			// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
 
 	static const int s_force_orientation_countdown_max = 240;
 };

@@ -1,26 +1,40 @@
 #pragma once
 
 #include "libcalib_common.h"
+#include "libcalib_ahrs.h"
+#include "libcalib_sampler.h"
 
 // 9DOF Kalman filter accelerometer, magnetometer and gyroscope state vector structure
 namespace libcalib
 {
 
-struct Nxp
+class CNxp : public IAhrs
 {
-			Nxp()
-				{ init(); }
+public:
+			CNxp()
+				{ Reset(); }
 
-	void	init();
-	void	update(
-				const AccelSensor_t* Accel,
-				const MagSensor_t* Mag,
-				const GyroSensor_t* Gyro,
+	void	Reset() override;
+    void    AddSample(
+				const SPoint & pntAccel,
+				const SPoint & pntMag,
+				const SPoint & pntGyro,
+				const MagCalibrator & magcal) override;
+    void    Read(SQuat * pQuat) const override
+			{
+				*pQuat = m_qPl;
+			}
+
+protected:
+	void	Update(
+				const SSampler::SAccel & accel,
+				const SSampler::SMag & mag,
+				const SSampler::SGyro & gyro,
 				bool isBCurValid,
 				float BCur);
-	void	read(Quaternion_t* q);
 
-private:
+	SSampler m_sampler;
+
 	// start: elements common to all motion state vectors
 	// Euler angles
 	float m_PhiPl;			// roll (deg)
@@ -30,7 +44,7 @@ private:
 	float m_ChiPl;			// tilt from vertical (deg)
 	// orientation matrix, quaternion and rotation vector
 	float m_RPl[3][3];		// a posteriori orientation matrix
-	Quaternion_t m_qPl;		// a posteriori orientation quaternion
+	SQuat m_qPl;		// a posteriori orientation quaternion
 	float m_RVecPl[3];		// rotation vector
 	// angular velocity
 	float m_Omega[3];		// angular velocity (deg/s)
@@ -63,12 +77,12 @@ private:
 	float m_Qw12x12[12][12];// covariance matrix Qw
 	float m_C6x12[6][12];	// measurement matrix C
 	float m_RMi[3][3];		// a priori orientation matrix
-	Quaternion_t m_Deltaq;	// delta quaternion
-	Quaternion_t m_qMi;		// a priori orientation quaternion
+	SQuat m_Deltaq;	// delta quaternion
+	SQuat m_qMi;		// a priori orientation quaternion
 	float m_casq;			// FCA * FCA;
 	float m_cdsq;			// FCD * FCD;
 	float m_Fastdeltat;		// sensor sampling interval (s) = 1 / SENSORFS
-	float m_deltat;			// kalman filter sampling interval (s) = OVERSAMPLE_RATIO / SENSORFS
+	float m_deltat;			// kalman filter sampling interval (s) =  / SENSORFS
 	float m_deltatsq;		// fdeltat * fdeltat
 	float m_QwbplusQvG;		// FQWB + FQVG
 	int16_t m_FirstOrientationLock;	// denotes that 9DOF orientation has locked to 6DOF

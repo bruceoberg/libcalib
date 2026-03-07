@@ -1,3 +1,34 @@
+#include "libcalib_nxp.h"
+#include "libcalib_magcal.h"
+
+#include "matrix.h"
+
+#include <string.h>
+#include <math.h>
+
+namespace libcalib
+{
+
+void CNxp::AddSample(
+	const SPoint &pntAccel,
+	const SPoint &pntMag,
+	const SPoint &pntGyro,
+	const MagCalibrator &magcal)
+{
+	m_sampler.AddSample(pntAccel, pntGyro, pntMag);
+
+	if (m_sampler.FIsFull())
+	{
+		Update(
+			m_sampler.m_accel,
+			m_sampler.m_mag,
+			m_sampler.m_gyro,
+			magcal.m_isValid,
+			magcal.m_cal_B);
+	}
+}
+
+
 // Copyright (c) 2014, Freescale Semiconductor, Inc.
 // All rights reserved.
 // vim: set ts=4:
@@ -29,15 +60,6 @@
 // is extremely complex, and it will be very easy (almost inevitable) that you screw
 // it up.
 //
-
-#include "libcalib_nxp.h"
-#include "matrix.h"
-
-#include <string.h>
-#include <math.h>
-
-namespace libcalib
-{
 
 namespace _9DOF_GBY_KALMAN
 {
@@ -74,18 +96,18 @@ constexpr float ONEOVER3840 = 0.0002604166667F;	// 1 / 3840
 
 
 
-void fqAeq1(Quaternion_t *pqA);
+void fqAeq1(SQuat *pqA);
 void feCompassNED(float fR[][3], float *pfDelta, const float fBc[], const float fGp[]);
 void fNEDAnglesDegFromRotationMatrix(float R[][3], float *pfPhiDeg,
 	float *pfTheDeg, float *pfPsiDeg, float *pfRhoDeg, float *pfChiDeg);
-void fQuaternionFromRotationMatrix(float R[][3], Quaternion_t *pq);
-void fQuaternionFromRotationVectorDeg(Quaternion_t *pq, const float rvecdeg[], float fscaling);
-void fRotationMatrixFromQuaternion(float R[][3], const Quaternion_t *pq);
-void fRotationVectorDegFromQuaternion(Quaternion_t *pq, float rvecdeg[]);
-void qAeqAxB(Quaternion_t *pqA, const Quaternion_t *pqB);
-void qAeqBxC(Quaternion_t *pqA, const Quaternion_t *pqB, const Quaternion_t *pqC);
+void fQuaternionFromRotationMatrix(float R[][3], SQuat *pq);
+void fQuaternionFromRotationVectorDeg(SQuat *pq, const float rvecdeg[], float fscaling);
+void fRotationMatrixFromQuaternion(float R[][3], const SQuat *pq);
+void fRotationVectorDegFromQuaternion(SQuat *pq, float rvecdeg[]);
+void qAeqAxB(SQuat *pqA, const SQuat *pqB);
+void qAeqBxC(SQuat *pqA, const SQuat *pqB, const SQuat *pqC);
 // Quaternion_t qconjgAxB(const Quaternion_t *pqA, const Quaternion_t *pqB);
-void fqAeqNormqA(Quaternion_t *pqA);
+void fqAeqNormqA(SQuat *pqA);
 float fasin_deg(float x);
 float facos_deg(float x);
 float fatan_deg(float x);
@@ -93,8 +115,10 @@ float fatan2_deg(float y, float x);
 float fatan_15deg(float x);
 
 // function initializes the 9DOF Kalman filter
-void Nxp::init()
+void CNxp::Reset()
 {
+	m_sampler.Reset();
+
 	int8_t i, j;				// loop counters
 
 	// reset the flag denoting that a first 9DOF orientation lock has been achieved
@@ -102,15 +126,15 @@ void Nxp::init()
 
 	// compute and store useful product terms to save floating point calculations later
 	m_Fastdeltat = 1.0F / (float)SENSORFS;
-	m_deltat = (float)OVERSAMPLE_RATIO * m_Fastdeltat;
+	m_deltat = (float) SSampler::s_cSample * m_Fastdeltat;
 	m_deltatsq = m_deltat * m_deltat;
 	m_casq = FCA * FCA;
 	m_cdsq = FCD * FCD;
 	m_QwbplusQvG = FQWB + FQVG;
 
 	// initialize the fixed entries in the measurement matrix C
-	for (i = 0; i < 6; i++) {
-		for (j = 0; j < 12; j++) {
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < 12; j++) {
 			m_C6x12[i][j]= 0.0F;
 		}
 	}
@@ -120,7 +144,7 @@ void Nxp::init()
 	// zero a posteriori orientation, error vector xe+ (thetae+, be+, de+, ae+) and b+ and inertial
 	f3x3matrixAeqI(m_RPl);
 	fqAeq1(&(m_qPl));
-	for (i = X; i <= Z; i++) {
+	for (int i = X; i <= Z; i++) {
 		m_ThErrPl[i] = m_bErrPl[i] = m_aErrSePl[i] = m_dErrSePl[i] = m_bPl[i] = 0.0F;
 	}
 
@@ -139,13 +163,13 @@ void Nxp::init()
 	// Qw is then recursively updated as P+ = (1 - K * C) * P- = (1 - K * C) * Qw  and Qw
 	// updated from P+
 	// zero the matrix Qw
-	for (i = 0; i < 12; i++) {
-		for (j = 0; j < 12; j++) {
+	for (int i = 0; i < 12; i++) {
+		for (int j = 0; j < 12; j++) {
 			m_Qw12x12[i][j] = 0.0F;
 		}
 	}
 	// loop over non-zero values
-	for (i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++) {
 		// theta_e * theta_e terms
 		m_Qw12x12[i][i] = FQWINITTHTH;
 		// b_e * b_e terms
@@ -166,10 +190,10 @@ void Nxp::init()
 
 
 // 9DOF orientation function implemented using a 12 element Kalman filter
-void Nxp::update(
-	const AccelSensor_t *Accel,
-	const MagSensor_t *Mag,
-	const GyroSensor_t *Gyro,
+void CNxp::Update(
+	const SSampler::SAccel & accel,
+	const SSampler::SMag & mag,
+	const SSampler::SGyro & gyro,
 	bool isBCurValid,
 	float BCur)
 {
@@ -204,7 +228,7 @@ void Nxp::update(
 
 	// do a reset and return if requested
 	if (m_resetflag) {
-		init();
+		Reset();
 		return;
 	}
 
@@ -215,7 +239,7 @@ void Nxp::update(
 	// do a once-only orientation lock after the first valid magnetic calibration
 	if (isBCurValid && !m_FirstOrientationLock) {
 		// get the 6DOF orientation matrix and initial inclination angle
-		feCompassNED(m_RPl, &(m_DeltaPl), Mag->BcFast, Accel->GpFast);
+		feCompassNED(m_RPl, &(m_DeltaPl), mag.BcFast, accel.GpFast);
 
 		// get the orientation quaternion from the orientation matrix
 		fQuaternionFromRotationMatrix(m_RPl, &(m_qPl));
@@ -230,18 +254,18 @@ void Nxp::update(
 
 	// compute the angular velocity from the averaged high frequency gyro reading.
 	// omega[k] = yG[k] - b-[k] = yG[k] - b+[k-1] (deg/s)
-	m_Omega[X] = Gyro->Yp[X] - m_bPl[X];
-	m_Omega[Y] = Gyro->Yp[Y] - m_bPl[Y];
-	m_Omega[Z] = Gyro->Yp[Z] - m_bPl[Z];
+	m_Omega[X] = gyro.Yp[X] - m_bPl[X];
+	m_Omega[Y] = gyro.Yp[Y] - m_bPl[Y];
+	m_Omega[Z] = gyro.Yp[Z] - m_bPl[Z];
 
 	// initialize the a priori orientation quaternion to the previous a posteriori estimate
 	m_qMi = m_qPl;
 
 	// integrate the buffered high frequency (typically 200Hz) gyro readings
-	for (j = 0; j < OVERSAMPLE_RATIO; j++) {
+	for (j = 0; j < m_sampler.s_cSample; j++) {
 		// compute the incremental fast (typically 200Hz) rotation vector rvec (deg)
 		for (i = X; i <= Z; i++) {
-			rvec[i] = (Gyro->YpFast[j][i] - m_bPl[i]) * m_Fastdeltat;
+			rvec[i] = (gyro.YpFast[j][i] - m_bPl[i]) * m_Fastdeltat;
 		}
 
 		// compute the incremental quaternion fDeltaq from the rotation vector
@@ -274,7 +298,7 @@ void Nxp::update(
 		// compute the a priori gravity error vector (accelerometer minus gyro estimates)
 		// (g, sensor frame)
 		// NED and Windows 8 have positive sign for gravity: y = g - a and g = y + a
-		m_gErrSeMi[i] = Accel->GpFast[i] + m_aSeMi[i] - m_gSeGyMi[i];
+		m_gErrSeMi[i] = accel.GpFast[i] + m_aSeMi[i] - m_gSeGyMi[i];
 
 		// compute the a priori gyro estimate of the geomagnetic vector (uT, sensor frame)
 		// using an absolute rotation of the global frame geomagnetic vector (with magnitude m_cal_B uT)
@@ -283,7 +307,7 @@ void Nxp::update(
 
 		// compute the a priori geomagnetic error vector (magnetometer minus gyro estimates)
 		// (g, sensor frame)
-		m_mErrSeMi[i] = Mag->BcFast[i] - m_mSeGyMi[i];
+		m_mErrSeMi[i] = mag.BcFast[i] - m_mSeGyMi[i];
 	}
 
 	// *********************************************************************************
@@ -535,12 +559,12 @@ void Nxp::update(
 	// compute the linear acceleration in the global frame from the accelerometer measurement (sensor frame).
 	// de-rotate the accelerometer measurement from the sensor to global frame using the inverse (transpose)
 	// of the a posteriori rotation matrix
-	m_aGlPl[X] = m_RPl[X][X] * Accel->GpFast[X] + m_RPl[Y][X] * Accel->GpFast[Y] +
-			m_RPl[Z][X] * Accel->GpFast[Z];
-	m_aGlPl[Y] = m_RPl[X][Y] * Accel->GpFast[X] + m_RPl[Y][Y] * Accel->GpFast[Y] +
-			m_RPl[Z][Y] * Accel->GpFast[Z];
-	m_aGlPl[Z] = m_RPl[X][Z] * Accel->GpFast[X] + m_RPl[Y][Z] * Accel->GpFast[Y] +
-			m_RPl[Z][Z] * Accel->GpFast[Z];
+	m_aGlPl[X] = m_RPl[X][X] * accel.GpFast[X] + m_RPl[Y][X] * accel.GpFast[Y] +
+			m_RPl[Z][X] * accel.GpFast[Z];
+	m_aGlPl[Y] = m_RPl[X][Y] * accel.GpFast[X] + m_RPl[Y][Y] * accel.GpFast[Y] +
+			m_RPl[Z][Y] * accel.GpFast[Z];
+	m_aGlPl[Z] = m_RPl[X][Z] * accel.GpFast[X] + m_RPl[Y][Z] * accel.GpFast[Y] +
+			m_RPl[Z][Z] * accel.GpFast[Z];
 	// remove gravity and correct the sign if the coordinate system is gravity positive / acceleration negative
 	// gravity positive NED
 	m_aGlPl[X] = -m_aGlPl[X];
@@ -723,11 +747,6 @@ void Nxp::update(
 		// Qw[d-d-] = Qw[9-11][9-11] = E[d-(d-)^T] = cd^2 * Q[d+d+] + Qwd * I
 		m_Qw12x12[i + 9][i + 9] = m_cdsq * m_PPlus12x12[i + 9][i + 9] + FQWD;
 	}
-}
-
-void Nxp::read(Quaternion_t* q)
-{
-	*q = m_qPl;
 }
 
 
@@ -934,7 +953,7 @@ void fNEDAnglesDegFromRotationMatrix(float R[][3], float *pfPhiDeg,
 
 
 // computes normalized rotation quaternion from a rotation vector (deg)
-void fQuaternionFromRotationVectorDeg(Quaternion_t *pq, const float rvecdeg[], float fscaling)
+void fQuaternionFromRotationVectorDeg(SQuat *pq, const float rvecdeg[], float fscaling)
 {
 	float fetadeg;			// rotation angle (deg)
 	float fetarad;			// rotation angle (rad)
@@ -989,7 +1008,7 @@ void fQuaternionFromRotationVectorDeg(Quaternion_t *pq, const float rvecdeg[], f
 }
 
 // compute the orientation quaternion from a 3x3 rotation matrix
-void fQuaternionFromRotationMatrix(float R[][3], Quaternion_t *pq)
+void fQuaternionFromRotationMatrix(float R[][3], SQuat *pq)
 {
 	float fq0sq;			// q0^2
 	float recip4q0;			// 1/4q0
@@ -1025,7 +1044,7 @@ void fQuaternionFromRotationMatrix(float R[][3], Quaternion_t *pq)
 }
 
 // compute the rotation matrix from an orientation quaternion
-void fRotationMatrixFromQuaternion(float R[][3], const Quaternion_t *pq)
+void fRotationMatrixFromQuaternion(float R[][3], const SQuat *pq)
 {
 	float f2q;
 	float f2q0q0, f2q0q1, f2q0q2, f2q0q3;
@@ -1118,7 +1137,7 @@ void fRotationVectorDegFromRotationMatrix(float R[][3], float rvecdeg[])
 }
 
 // computes rotation vector (deg) from rotation quaternion
-void fRotationVectorDegFromQuaternion(Quaternion_t *pq, float rvecdeg[])
+void fRotationVectorDegFromQuaternion(SQuat *pq, float rvecdeg[])
 {
 	float fetarad;			// rotation angle (rad)
 	float fetadeg;			// rotation angle (deg)
@@ -1159,7 +1178,7 @@ void fRotationVectorDegFromQuaternion(Quaternion_t *pq, float rvecdeg[])
 }
 
 // function compute the quaternion product qA * qB
-void qAeqBxC(Quaternion_t *pqA, const Quaternion_t *pqB, const Quaternion_t *pqC)
+void qAeqBxC(SQuat *pqA, const SQuat *pqB, const SQuat *pqC)
 {
 	pqA->q0 = pqB->q0 * pqC->q0 - pqB->q1 * pqC->q1 - pqB->q2 * pqC->q2 - pqB->q3 * pqC->q3;
 	pqA->q1 = pqB->q0 * pqC->q1 + pqB->q1 * pqC->q0 + pqB->q2 * pqC->q3 - pqB->q3 * pqC->q2;
@@ -1168,9 +1187,9 @@ void qAeqBxC(Quaternion_t *pqA, const Quaternion_t *pqB, const Quaternion_t *pqC
 }
 
 // function compute the quaternion product qA = qA * qB
-void qAeqAxB(Quaternion_t *pqA, const Quaternion_t *pqB)
+void qAeqAxB(SQuat *pqA, const SQuat *pqB)
 {
-	Quaternion_t qProd;
+	SQuat qProd;
 
 	// perform the quaternion product
 	qProd.q0 = pqA->q0 * pqB->q0 - pqA->q1 * pqB->q1 - pqA->q2 * pqB->q2 - pqA->q3 * pqB->q3;
@@ -1183,7 +1202,7 @@ void qAeqAxB(Quaternion_t *pqA, const Quaternion_t *pqB)
 }
 
 // function normalizes a rotation quaternion and ensures q0 is non-negative
-void fqAeqNormqA(Quaternion_t *pqA)
+void fqAeqNormqA(SQuat *pqA)
 {
 	float fNorm;					// quaternion Norm
 
@@ -1212,7 +1231,7 @@ void fqAeqNormqA(Quaternion_t *pqA)
 }
 
 // set a quaternion to the unit quaternion
-void fqAeq1(Quaternion_t *pqA)
+void fqAeq1(SQuat *pqA)
 {
 	pqA->q0 = 1.0F;
 	pqA->q1 = pqA->q2 = pqA->q3 = 0.0F;

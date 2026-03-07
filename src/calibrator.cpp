@@ -9,44 +9,37 @@ void Calibrator::reset()
 {
 	m_magcal.reset();
 
-	m_current_orientation.q0 = 1.0f;
-	m_current_orientation.q1 = 0.0f;
-	m_current_orientation.q2 = 0.0f;
-	m_current_orientation.q3 = 0.0f;
+	m_current_orientation = SQuat();
 
-	m_oversample_countdown = OVERSAMPLE_RATIO;
 	m_force_orientation_countdown = s_force_orientation_countdown_max;
 
-	m_accel = { 0 };
-	m_mag = { 0 };
-	m_gyro = { 0 };
-
-	m_ahrs.init();
+	m_ahrs.Reset();
 }
 
 void Calibrator::add_raw_data(const int16_t(&data)[9])
 {
-	Point_t BpFast(
-			(float)data[6] * UT_PER_COUNT,
-			(float)data[7] * UT_PER_COUNT,
-			(float)data[8] * UT_PER_COUNT);
-	Point_t BcFast;
+	const SPoint pntAccel(
+					SAccelFromS16(data[0]),
+					SAccelFromS16(data[1]),
+					SAccelFromS16(data[2]));
+	const SPoint pntGyro(
+					SGyroFromS16(data[3]),
+					SGyroFromS16(data[4]),
+					SGyroFromS16(data[5]));
+	const SPoint pntMagRaw(
+					SMagFromS16(data[6]),
+					SMagFromS16(data[7]),
+					SMagFromS16(data[8]));
+	SPoint pntMagCal;
 
-	m_magcal.add_magcal_data(BpFast, &BcFast);
+	m_magcal.AddMagPoint(pntMagRaw, &pntMagCal);
 
-	float x = m_magcal.m_cal_V[0];
-	float y = m_magcal.m_cal_V[1];
-	float z = m_magcal.m_cal_V[2];
+	float sMagChange = 0.0f;
 
-	if (m_magcal.get_new_calibration()) {
-		x -= m_magcal.m_cal_V[0];
-		y -= m_magcal.m_cal_V[1];
-		z -= m_magcal.m_cal_V[2];
-		float magdiff = sqrtf(x * x + y * y + z * z);
+	if (m_magcal.FHasNewCalibration(&sMagChange)) {
 		//printf("magdiff = %.2f\n", magdiff);
-		if (magdiff > 0.8f) {
-			m_ahrs.init();
-			m_oversample_countdown = OVERSAMPLE_RATIO;
+		if (sMagChange > 0.8f) {
+			m_ahrs.Reset();
 			m_force_orientation_countdown = s_force_orientation_countdown_max;
 		}
 	}
@@ -54,59 +47,12 @@ void Calibrator::add_raw_data(const int16_t(&data)[9])
 	if (m_force_orientation_countdown > 0) {
 		if (--m_force_orientation_countdown == 0) {
 			//printf("delayed forcible orientation reset\n");
-			m_ahrs.init();
-			m_oversample_countdown = OVERSAMPLE_RATIO;
+			m_ahrs.Reset();
 		}
 	}
 
-	if (m_oversample_countdown >= OVERSAMPLE_RATIO) {
-		m_accel = { 0 };
-		m_mag = { 0 };
-		m_gyro = { 0 };
-		m_oversample_countdown = 0;
-	}
-	x = (float)data[0] * G_PER_COUNT;
-	y = (float)data[1] * G_PER_COUNT;
-	z = (float)data[2] * G_PER_COUNT;
-	m_accel.GpFast[0] = x;
-	m_accel.GpFast[1] = y;
-	m_accel.GpFast[2] = z;
-	m_accel.Gp[0] += x;
-	m_accel.Gp[1] += y;
-	m_accel.Gp[2] += z;
-
-	x = (float)data[3] * DEG_PER_SEC_PER_COUNT;
-	y = (float)data[4] * DEG_PER_SEC_PER_COUNT;
-	z = (float)data[5] * DEG_PER_SEC_PER_COUNT;
-	m_gyro.Yp[0] += x;
-	m_gyro.Yp[1] += y;
-	m_gyro.Yp[2] += z;
-	m_gyro.YpFast[m_oversample_countdown][0] = x;
-	m_gyro.YpFast[m_oversample_countdown][1] = y;
-	m_gyro.YpFast[m_oversample_countdown][2] = z;
-
-	m_mag.BcFast[0] = BcFast.x;
-	m_mag.BcFast[1] = BcFast.y;
-	m_mag.BcFast[2] = BcFast.z;
-	m_mag.Bc[0] += BcFast.x;
-	m_mag.Bc[1] += BcFast.y;
-	m_mag.Bc[2] += BcFast.z;
-
-	m_oversample_countdown++;
-	if (m_oversample_countdown >= OVERSAMPLE_RATIO) {
-		float ratio = 1.0f / (float)OVERSAMPLE_RATIO;
-		m_accel.Gp[0] *= ratio;
-		m_accel.Gp[1] *= ratio;
-		m_accel.Gp[2] *= ratio;
-		m_gyro.Yp[0] *= ratio;
-		m_gyro.Yp[1] *= ratio;
-		m_gyro.Yp[2] *= ratio;
-		m_mag.Bc[0] *= ratio;
-		m_mag.Bc[1] *= ratio;
-		m_mag.Bc[2] *= ratio;
-		m_ahrs.update(&m_accel, &m_mag, &m_gyro, m_magcal.m_isValid, m_magcal.m_cal_B);
-		m_ahrs.read(&m_current_orientation);
-	}
+	m_ahrs.AddSample(pntAccel, pntGyro, pntMagCal, m_magcal);
+	m_ahrs.Read(&m_current_orientation);
 }
 
 } // namespace libcalib

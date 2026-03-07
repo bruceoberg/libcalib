@@ -11,9 +11,9 @@ struct MagQuality
 {
 	MagQuality();
 	
-	void set_invalid()
+	void Reset()
 			{ m_isValid = false; }
-	void ensure_valid(const MagCalibrator & magcal);
+	void Ensure(const MagCalibrator & magcal);
 
 	bool AreErrorsOk() const;
 	bool AreErrorsBad() const;
@@ -36,7 +36,7 @@ private:
 
 	bool	m_isValid;
 	int		m_mpRegionCount[100];
-	Point_t	m_mpRegionSum[100];
+	SPoint	m_mpRegionSum[100];
 
 	// these taken from MyFrame::OnTimer() in the original MotionCal app.
 	//	(https://github.com/PaulStoffregen/MotionCal/blob/master/gui.cpp)

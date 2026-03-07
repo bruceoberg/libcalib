@@ -10,13 +10,20 @@ namespace libcalib
 constexpr float M_PI = 3.141592653589793238462643383279502884197169399375105820974944592307816406;
 #endif
 
-constexpr int MAGBUFFSIZE = 650; // Freescale's lib needs at least 392
-constexpr int SENSORFS = 100;
-constexpr int OVERSAMPLE_RATIO = 4;
-
-struct Point_t
+constexpr float RadFromDeg(float deg)
 {
-	Point_t(
+	return (M_PI * deg) / 180.0f;
+}
+
+template<uint32_t N, class T>
+constexpr uint32_t DIM(T(&)[N]) { return N; }
+
+
+constexpr int SENSORFS = 100;
+
+struct SPoint
+{
+	SPoint(
 		float i_x = 0.0f,
 		float i_y = 0.0f,
 		float i_z = 0.0f)
@@ -33,9 +40,9 @@ struct Point_t
 		{ return (&x)[i]; }
 };
 
-struct Quaternion_t
+struct SQuat
 {
-	Quaternion_t(
+	SQuat(
 		float i_q0 = 1.0f,
 		float i_q1 = 0.0f,
 		float i_q2 = 0.0f,
@@ -49,28 +56,21 @@ struct Quaternion_t
 	float q3; // z
 };
 
-// accelerometer sensor structure definition
-constexpr float G_PER_COUNT = 0.0001220703125F;  // = 1/8192
-struct AccelSensor_t
-{
-	float Gp[3];           // slow (typically 25Hz) averaged readings (g)
-	float GpFast[3];       // fast (typically 200Hz) readings (g)
-};
+// conversion ratios for s16 line samples.
 
-// magnetometer sensor structure definition
-constexpr float UT_PER_COUNT = 0.1F;
-struct MagSensor_t
+constexpr float SAccelFromS16(int16_t s)
 {
-	float Bc[3];           // slow (typically 25Hz) averaged calibrated readings (uT)
-	float BcFast[3];       // fast (typically 200Hz) calibrated readings (uT)
-};
+	return float(s) * 0.0001220703125F;  // = 1/8192
+}
 
-// gyro sensor structure definition
-constexpr float DEG_PER_SEC_PER_COUNT = 0.0625F;  // = 1/16
-struct GyroSensor_t
+constexpr float SMagFromS16(int16_t s)
 {
-	float Yp[3];                           // raw gyro sensor output (deg/s)
-	float YpFast[OVERSAMPLE_RATIO][3];     // fast (typically 200Hz) readings
-};
+	return float(s) * 0.1F;
+}
+
+constexpr float SGyroFromS16(int16_t s)
+{
+	return float(s) * 0.0625F;
+}
 
 } // namespace libcalib

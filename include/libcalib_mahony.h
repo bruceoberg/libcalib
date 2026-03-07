@@ -1,38 +1,52 @@
 #pragma once
 
 #include "libcalib_common.h"
+#include "libcalib_ahrs.h"
+#include "libcalib_sampler.h"
 
 namespace libcalib
 {
 
-struct Mahony
+class CMahony : public IAhrs
 {
-			Mahony()
-			: m_q0(1.0f)
-			, m_q1(0.0f)
-			, m_q2(0.0f)
-			, m_q3(0.0f)
-				{ init(); }
+public:
+			CMahony()
+				{ Reset(); }
 
-	void	init();
-	void	update(
-				const AccelSensor_t *Accel,
-				const MagSensor_t *Mag,
-				const GyroSensor_t *Gyro,
-				bool isBCurValid,
-				float BCur);
-	void	read(Quaternion_t* q);
+	void	Reset() override;
+    void    AddSample(
+				const SPoint & pntAccel,
+				const SPoint & pntMag,
+				const SPoint & pntGyro,
+				const MagCalibrator & magcal) override;
+    void    Read(SQuat * pQuat) const override
+			{
+				pQuat->q0 = m_q0;
+				pQuat->q1 = m_q1;
+				pQuat->q2 = m_q2;
+				pQuat->q3 = m_q3;
+			}
 
-private:
-	void	update(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
-	void	updateIMU(float gx, float gy, float gz, float ax, float ay, float az);
+protected:
+	void 	UpdateSamples(
+				const SSampler::SAccel & accel,
+				const SSampler::SMag & mag,
+				const SSampler::SGyro & gyro,
+				const MagCalibrator & magcal);
+	void	UpdateSample(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
+	void	UpdateSampleNoMag(float gx, float gy, float gz, float ax, float ay, float az);
+
+	SSampler
+			m_sampler;
 
 	float	m_twoKp;		// 2 * proportional gain (Kp)
 	float	m_twoKi;		// 2 * integral gain (Ki)
+
 	float	m_q0;			// quaternion of sensor frame relative to auxiliary frame
 	float	m_q1;
 	float	m_q2;
-	float	m_q3; 
+	float	m_q3;
+
 	float	m_integralFBx;	// integral error terms scaled by Ki
 	float	m_integralFBy;
 	float	m_integralFBz;
