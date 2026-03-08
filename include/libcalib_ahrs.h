@@ -25,7 +25,7 @@ public:
     // Implementations that oversample (Nxp, Mahony) accumulate internally and
     // run their filter update every SSampler::s_cSample calls; Fusion runs every call.
     // magcal — current magnetometer calibration state; implementations query
-    //          m_isValid and m_cal_B directly rather than receiving extracted scalars.
+    //          FHasSolution() and m_cal_B directly rather than receiving extracted scalars.
     virtual void    AddSample(
                         const SPoint & accel,
                         const SPoint & mag,

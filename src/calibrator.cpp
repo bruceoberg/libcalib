@@ -7,7 +7,7 @@ namespace libcalib
 
 void Calibrator::reset()
 {
-	m_magcal.reset();
+	m_magcal.Reset();
 
 	m_current_orientation = SQuat();
 

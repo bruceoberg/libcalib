@@ -35,7 +35,7 @@ namespace libcalib
 
 		for (int i = 0; i < m_sampler.s_cSample; i++)
 		{
-			if (magcal.m_isValid)
+			if (magcal.FHasSolution())
 			{
 				UpdateSample(
 					RadFromDeg(gyro.YpFast[i][X]),

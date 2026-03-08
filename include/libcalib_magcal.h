@@ -19,14 +19,27 @@ struct MagCalibrator
 {
     static const int s_cSampMax = 650; // Freescale's lib needs at least 392
 
+    enum SOLVER
+    {
+        SOLVER_4Inv,    // 4 element matrix inversion calibration
+        SOLVER_7Eig,    // 7 element eigenpair calibration
+        SOLVER_10Eig,   // 10 element eigenpair calibration
+
+        SOLVER_Max,
+        SOLVER_Min = 0,
+        SOLVER_Nil = -1
+    };
+
     MagCalibrator();
 
-	void reset()
+	void Reset()
 	        { *this = MagCalibrator(); }
 	void AddMagPoint(const SPoint & BpFast, SPoint * pBcFast);
 	bool FHasNewCalibration(float * pSMadDiff);
+    bool FHasSolution() const
+            { return m_solver != SOLVER_Nil; }
 
-    void ensure_quality()
+    void EnsureQuality()
         { m_quality.Ensure(*this); }
 
     bool AreErrorsOk() const
@@ -47,7 +60,7 @@ struct MagCalibrator
     float m_cal_invW[3][3];             // current inverse soft iron matrix
     float m_cal_B;                      // current geomagnetic field magnitude (uT)
     float m_errFit;                     // current fit error %
-    int8_t m_isValid;                   // integer value 0, 4, 7, 10 denoting both valid calibration and solver used
+    SOLVER m_solver;                   // currently used solver
 	int16_t m_cSamp;                    // number of magnetometer samples
     MagSample m_aSamp[s_cSampMax];     // magnetometer samples
 

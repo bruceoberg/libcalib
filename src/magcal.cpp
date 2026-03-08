@@ -61,7 +61,7 @@ MagCalibrator::MagCalibrator()
 	, m_cal_invW()
 	, m_cal_B()
 	, m_errFit(MagQuality::s_errMax)
-	, m_isValid(0)
+	, m_solver(SOLVER_Nil)
 	, m_cSamp(0)
 	, m_aSamp()
 	, m_quality()
@@ -192,7 +192,7 @@ void MagCalibrator::AddMagPoint(const SPoint & BpFast, SPoint * pBcFast)
 bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 {
 	int i, j;			// loop counters
-	int isolver;		// magnetic solver used
+	SOLVER solver = SOLVER_Nil;		// magnetic solver used
 
 	// only do the calibration occasionally
 
@@ -201,22 +201,22 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 
 	if (m_cSamp < MINMEASUREMENTS4CAL) return false;
 
-	if (m_isValid) {
+	if (m_solver != SOLVER_Nil) {
 		// age the existing fit error to avoid one good calibration locking out future updates
 		m_errorFitAged *= 1.02f;
 	}
 
 	// is enough data collected
 	if (m_cSamp < MINMEASUREMENTS7CAL) {
-		isolver = 4;
+		solver = SOLVER_4Inv;
 		UpdateCalibration4INV(); // 4 element matrix inversion calibration
 		if (m_errorFitNext < 12.0f) m_errorFitNext = 12.0f;
 	} else if (m_cSamp < MINMEASUREMENTS10CAL) {
-		isolver = 7;
+		solver = SOLVER_7Eig;
 		UpdateCalibration7EIG(); // 7 element eigenpair calibration
 		if (m_errorFitNext < 7.5f) m_errorFitNext = 7.5f;
 	} else {
-		isolver = 10;
+		solver = SOLVER_10Eig;
 		UpdateCalibration10EIG(); // 10 element eigenpair calibration
 	}
 
@@ -226,12 +226,12 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 		//  1: no previous calibration exists
 		//  2: the calibration fit is reduced or
 		//  3: an improved solver was used giving a good trial calibration (4% or under)
-		if ((m_isValid == 0) ||
+		if ((m_solver == SOLVER_Nil) ||
 				(m_errorFitNext <= m_errorFitAged) ||
-				((isolver > m_isValid) && (m_errorFitNext <= 4.0F))) {
+				((solver > m_solver) && (m_errorFitNext <= 4.0F))) {
 			// accept the new calibration solution
 			//printf("new magnetic cal, B=%.2f uT\n", m_calNext_B);
-			m_isValid = isolver;
+			m_solver = solver;
 			m_errFit = m_errorFitNext;
 			if (m_errorFitNext > 2.0f) {
 				m_errorFitAged = m_errorFitNext;

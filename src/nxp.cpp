@@ -23,7 +23,7 @@ void CNxp::AddSample(
 			m_sampler.m_accel,
 			m_sampler.m_mag,
 			m_sampler.m_gyro,
-			magcal.m_isValid,
+			magcal.FHasSolution(),
 			magcal.m_cal_B);
 	}
 }

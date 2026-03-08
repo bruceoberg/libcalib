@@ -48,7 +48,7 @@ void CFusion::AddSample(
     const FusionVector gyro  = { pntGyro.x,  pntGyro.y,  pntGyro.z  };
     const FusionVector accel = { pntAccel.x, pntAccel.y, pntAccel.z };
 
-    if (magcal.m_isValid)
+    if (magcal.FHasSolution())
     {
         const FusionVector mag = { pntMag.x, pntMag.y, pntMag.z };
         FusionAhrsUpdate(&m_fusionahrs, gyro, accel, mag, k_gSamplePeriod);
