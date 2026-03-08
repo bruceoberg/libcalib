@@ -25,3 +25,7 @@ target_sources(libcalib
 )
 
 target_include_directories(libcalib PUBLIC ${PROJECT_SOURCE_DIR}/include)
+
+if(TARGET Fusion)
+    target_link_libraries(libcalib PUBLIC Fusion)
+endif()

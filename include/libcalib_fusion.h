@@ -1,29 +1,41 @@
 #pragma once
 
+// libcalib_fusion.h — IAhrs implementation wrapping the xioTechnologies Fusion
+// library (Sebastian Madgwick).  Unlike CMahony/CAhrsNxp, CFusion does NOT
+// oversample: FusionAhrs is designed to be called at the full sensor rate, so
+// AddSample feeds the filter on every call with no SSampler accumulation.
+//
 #include "libcalib_common.h"
 #include "libcalib_ahrs.h"
+
+#define LIBCALIB_HAS_FUSION __has_include("Fusion.h")
+
+#if LIBCALIB_HAS_FUSION
+#include "Fusion.h"
+#endif
 
 namespace libcalib
 {
 
-class CFusion : public IAhrs
+class MagCalibrator;  // libcalib_magcal.h
+
+class CFusion : public IAhrs  // tag: fuse
 {
 public:
-			CFusion()
-				{ Reset(); }
+				CFusion();
 
-	void	Reset() override
-				{ ; }
-    void    AddSample(
-				const SPoint & pntAccel,
-				const SPoint & pntMag,
-				const SPoint & pntGyro,
-				const MagCalibrator & magcal) override
-				{ ; }
-    void    Read(SQuat * pQuat) const override
-				{ ; }
+	void		Reset() override;
+	void		AddSample(
+					const SPoint & pntAccel,
+					const SPoint & pntMag,
+					const SPoint & pntGyro,
+					const MagCalibrator & magcal) override;
+	void		Read(SQuat * pQuat) const override;
 
-protected:
+private:
+#if LIBCALIB_HAS_FUSION
+	FusionAhrs	m_fusionahrs;	// Fusion filter state
+#endif
 };
 
 } // namespace libcalib

@@ -12,6 +12,12 @@ namespace libcalib
 class Calibrator
 {
 public:
+	static Calibrator & Ensure()
+	{
+		static Calibrator s_calib;
+		return s_calib;
+	}
+
 	Calibrator()
 		{ reset(); }
 
@@ -28,7 +34,7 @@ private:
 	CFusion m_fusion;
 	CMahony m_mahony;
 
-	CMahony m_ahrs;			// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
+	CFusion m_ahrs;			// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
 
 	static const int s_force_orientation_countdown_max = 240;
 };
