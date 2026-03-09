@@ -38,8 +38,8 @@ void CFusion::Reset()
 
 void CFusion::AddSample(
     const SPoint & pntAccel,
-    const SPoint & pntMag,
     const SPoint & pntGyro,
+    const SPoint & pntMag,
     const MagCalibrator & magcal)
 {
     // Fusion takes deg/s directly — no conversion needed for gyro.

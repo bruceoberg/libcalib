@@ -27,9 +27,9 @@ public:
     // magcal — current magnetometer calibration state; implementations query
     //          FHasSolution() and m_cal_B directly rather than receiving extracted scalars.
     virtual void    AddSample(
-                        const SPoint & accel,
-                        const SPoint & mag,
-                        const SPoint & gyro,
+                        const SPoint & pntAccel,
+                        const SPoint & pntGyro,
+                        const SPoint & pntMag,
                         const MagCalibrator & magcal) = 0;
 
     // Copy the most recently computed orientation into *pQ.

@@ -27,8 +27,8 @@ public:
 	void		Reset() override;
 	void		AddSample(
 					const SPoint & pntAccel,
-					const SPoint & pntMag,
 					const SPoint & pntGyro,
+					const SPoint & pntMag,
 					const MagCalibrator & magcal) override;
 	void		Read(SQuat * pQuat) const override;
 

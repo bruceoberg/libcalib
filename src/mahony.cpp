@@ -7,8 +7,8 @@ namespace libcalib
 {
 	void CMahony::AddSample(
 		const SPoint &pntAccel,
-		const SPoint &pntMag,
 		const SPoint &pntGyro,
+		const SPoint &pntMag,
 		const MagCalibrator &magcal)
 	{
 		m_sampler.AddSample(pntAccel, pntGyro, pntMag);
@@ -17,16 +17,16 @@ namespace libcalib
 		{
 			UpdateSamples(
 				m_sampler.m_accel,
-				m_sampler.m_mag,
 				m_sampler.m_gyro,
+				m_sampler.m_mag,
 				magcal);
 		}
 	}
 
 	void CMahony::UpdateSamples(
 		const SSampler::SAccel & accel,
-		const SSampler::SMag & mag,
 		const SSampler::SGyro & gyro,
+		const SSampler::SMag & mag,
 		const MagCalibrator &magcal)
 	{
 		constexpr int X = 0;

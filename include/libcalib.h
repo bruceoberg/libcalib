@@ -22,7 +22,7 @@ public:
 		{ reset(); }
 
 	void reset();
-	void add_raw_data(const int16_t(&data)[9]);
+	void AddSample(const SSample & samp);
 
 	MagCalibrator m_magcal;
 	SQuat m_current_orientation;

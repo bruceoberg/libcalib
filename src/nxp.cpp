@@ -11,8 +11,8 @@ namespace libcalib
 
 void CNxp::AddSample(
 	const SPoint &pntAccel,
-	const SPoint &pntMag,
 	const SPoint &pntGyro,
+	const SPoint &pntMag,
 	const MagCalibrator &magcal)
 {
 	m_sampler.AddSample(pntAccel, pntGyro, pntMag);
@@ -21,8 +21,8 @@ void CNxp::AddSample(
 	{
 		Update(
 			m_sampler.m_accel,
-			m_sampler.m_mag,
 			m_sampler.m_gyro,
+			m_sampler.m_mag,
 			magcal.FHasSolution(),
 			magcal.m_cal_B);
 	}
@@ -192,8 +192,8 @@ void CNxp::Reset()
 // 9DOF orientation function implemented using a 12 element Kalman filter
 void CNxp::Update(
 	const SSampler::SAccel & accel,
-	const SSampler::SMag & mag,
 	const SSampler::SGyro & gyro,
+	const SSampler::SMag & mag,
 	bool isBCurValid,
 	float BCur)
 {

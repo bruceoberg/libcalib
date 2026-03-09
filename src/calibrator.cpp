@@ -16,23 +16,11 @@ void Calibrator::reset()
 	m_ahrs.Reset();
 }
 
-void Calibrator::add_raw_data(const int16_t(&data)[9])
+void Calibrator::AddSample(const SSample & samp)
 {
-	const SPoint pntAccel(
-					SAccelFromS16(data[0]),
-					SAccelFromS16(data[1]),
-					SAccelFromS16(data[2]));
-	const SPoint pntGyro(
-					SGyroFromS16(data[3]),
-					SGyroFromS16(data[4]),
-					SGyroFromS16(data[5]));
-	const SPoint pntMagRaw(
-					SMagFromS16(data[6]),
-					SMagFromS16(data[7]),
-					SMagFromS16(data[8]));
 	SPoint pntMagCal;
 
-	m_magcal.AddMagPoint(pntMagRaw, &pntMagCal);
+	m_magcal.AddMagPoint(samp.m_pntMag, &pntMagCal);
 
 	float sMagChange = 0.0f;
 
@@ -51,7 +39,7 @@ void Calibrator::add_raw_data(const int16_t(&data)[9])
 		}
 	}
 
-	m_ahrs.AddSample(pntAccel, pntGyro, pntMagCal, m_magcal);
+	m_ahrs.AddSample(samp.m_pntAccel, samp.m_pntGyro, pntMagCal, m_magcal);
 	m_ahrs.Read(&m_current_orientation);
 }
 
