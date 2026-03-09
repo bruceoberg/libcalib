@@ -15,6 +15,21 @@ constexpr float RadFromDeg(float deg)
 	return (M_PI * deg) / 180.0f;
 }
 
+constexpr float DegFromRad(float rad)
+{
+	return (180.0f * rad) / M_PI;
+}
+
+constexpr float GFromMPerSecSq(float mPerSecSq)
+{
+	return mPerSecSq / 9.80665f;
+}
+
+constexpr float MPerSecSqFromG(float g)
+{
+	return g * 9.80665f;
+}
+
 template<uint32_t N, class T>
 constexpr uint32_t DIM(T(&)[N]) { return N; }
 
@@ -56,21 +71,11 @@ struct SQuat
 	float q3; // z
 };
 
-// conversion ratios for s16 line samples.
-
-constexpr float SAccelFromS16(int16_t s)
+struct SSample	// tag = samp
 {
-	return float(s) * 0.0001220703125F;  // = 1/8192
-}
-
-constexpr float SMagFromS16(int16_t s)
-{
-	return float(s) * 0.1F;
-}
-
-constexpr float SGyroFromS16(int16_t s)
-{
-	return float(s) * 0.0625F;
-}
+	SPoint m_pntAccel;	// accelerometer (g)
+	SPoint m_pntGyro;	// gyroscope (deg/s)
+	SPoint m_pntMag;	// magnetometer (uT)
+};
 
 } // namespace libcalib
