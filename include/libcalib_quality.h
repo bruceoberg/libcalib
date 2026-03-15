@@ -30,13 +30,11 @@ struct MagQuality
 	static constexpr float s_errMax = 100.0f;
 
 private:
-	float	ErrGaps();
+	float	ErrGaps(const MagCalibrator & magcal);
 	float	ErrVariance(const MagCalibrator & magcal);
 	float	ErrWobble(const MagCalibrator & magcal);
 
 	bool	m_isValid;
-	int		m_mpRegionCount[100];
-	SPoint	m_mpRegionSum[100];
 
 	// these taken from MyFrame::OnTimer() in the original MotionCal app.
 	//	(https://github.com/PaulStoffregen/MotionCal/blob/master/gui.cpp)

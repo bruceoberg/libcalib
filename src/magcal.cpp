@@ -34,12 +34,17 @@
 
 #include "libcalib.h"
 #include "matrix.h"
+#include "sphere_partition.h"
 
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 namespace libcalib
 {
+
+// pigeonhole invariant: when the buffer is full, at least one region has >1 sample
+static_assert(MagCalibrator::s_cSampMax > REGION_Max);
 
 constexpr float DEFAULTB = 50.0F;				// default geomagnetic field (uT)
 constexpr int X = 0;							// vector components
@@ -54,6 +59,81 @@ constexpr float MINBFITUT = 22.0F;				// minimum geomagnetic field B (uT) for va
 constexpr float MAXBFITUT = 67.0F;				// maximum geomagnetic field B (uT) for valid calibration
 constexpr float FITERRORAGINGSECS = 7200.0F;	// 2 hours: time for fit error to increase (age) by e=2.718
 
+// CSampleSet
+
+MagCalibrator::CSampleSet::CSampleSet()
+: m_aSamp()
+, m_cSamp(0)
+, m_mpRegionCSamp()
+, m_idNext(0)
+{
+}
+
+void MagCalibrator::CSampleSet::Add(const MagSample & samp)
+{
+	int iSampDest;
+
+	if (m_cSamp < s_cSampMax)
+	{
+		iSampDest = m_cSamp;
+		m_cSamp++;
+	}
+	else
+	{
+		// pigeonhole: at least one region has >1 sample
+		REGION regionEvict = RegionMostPopulated();
+		iSampDest = ISampOldestInRegion(regionEvict);
+		if (iSampDest < 0)
+			iSampDest = 0;
+		m_mpRegionCSamp[m_aSamp[iSampDest].m_region]--;
+	}
+
+	m_aSamp[iSampDest] = samp;
+	m_aSamp[iSampDest].m_id = m_idNext++;
+	m_mpRegionCSamp[samp.m_region]++;
+}
+
+void MagCalibrator::CSampleSet::Replace(int iSamp, const MagSample & samp)
+{
+	m_mpRegionCSamp[m_aSamp[iSamp].m_region]--;
+	m_aSamp[iSamp] = samp;
+	m_aSamp[iSamp].m_id = m_idNext++;
+	m_mpRegionCSamp[samp.m_region]++;
+}
+
+REGION MagCalibrator::CSampleSet::RegionMostPopulated() const
+{
+	REGION regionBest = REGION_Nil;
+	int cSampBest = 1; // must be strictly greater than 1
+
+	for (int region = 0; region < REGION_Max; region++)
+	{
+		if (m_mpRegionCSamp[region] > cSampBest)
+		{
+			cSampBest = m_mpRegionCSamp[region];
+			regionBest = static_cast<REGION>(region);
+		}
+	}
+
+	return regionBest;
+}
+
+int MagCalibrator::CSampleSet::ISampOldestInRegion(REGION region) const
+{
+	int iSampOldest = -1;
+	MagSample::ID idOldest = ~MagSample::ID(0); // max value
+
+	for (int i = 0; i < m_cSamp; i++)
+	{
+		if (m_aSamp[i].m_region == region && m_aSamp[i].m_id < idOldest)
+		{
+			idOldest = m_aSamp[i].m_id;
+			iSampOldest = i;
+		}
+	}
+
+	return iSampOldest;
+}
 
 
 MagCalibrator::MagCalibrator()
@@ -62,8 +142,7 @@ MagCalibrator::MagCalibrator()
 	, m_cal_B()
 	, m_errFit(MagQuality::s_errMax)
 	, m_solver(SOLVER_Nil)
-	, m_cSamp(0)
-	, m_aSamp()
+	, m_samps()
 	, m_quality()
 	, m_errorFitAged(MagQuality::s_errMax)
 	, m_calNext_V()
@@ -90,13 +169,8 @@ MagCalibrator::MagCalibrator()
 
 int MagCalibrator::ISampChooseDiscard()
 {
-	float dx, dy, dz;
-	float x, y, z;
-	float distsq;
-	float minsum = FLT_MAX;
-	int i, j, minindex = 0;
-	SPoint Bc;
 	float gaps, field, error, errormax;
+	int i, j;
 
 	// When enough data is collected (gaps error is low), assume we
 	// have a pretty good coverage and the field stregth is known.
@@ -106,19 +180,19 @@ int MagCalibrator::ISampChooseDiscard()
 		// always rate limit assumption-based data purging, but allow the
 		// rate to increase as the angular coverage improves.
 		if (gaps < 1.0f) gaps = 1.0f;
-		if (++m_discard_count > (int)(gaps * 10.0f)) {
-			j = m_cSamp;
+		if (++m_discard_count > static_cast<int>(gaps * 10.0f)) {
+			j = m_samps.CSamp();
 			errormax = 0.0f;
-			for (i = 0; i < m_cSamp; i++) {
+			for (i = 0; i < m_samps.CSamp(); i++) {
 				// if m_cal_B is bad, things could go horribly wrong
-				error = fabsf(m_aSamp[i].m_field - m_cal_B);
+				error = fabsf(m_samps.Samp(i).m_field - m_cal_B);
 				if (error > errormax) {
 					errormax = error;
 					j = i;
 				}
 			}
 			m_discard_count = 0;
-			if (j < m_cSamp) {
+			if (j < m_samps.CSamp()) {
 				//printf("worst error at %d\n", j);
 				return j;
 			}
@@ -127,59 +201,29 @@ int MagCalibrator::ISampChooseDiscard()
 	else {
 		m_discard_count = 0;
 	}
-	// When solid info isn't available, find 2 points closest to each other,
-	// and discard the first one.  When we don't have good coverage, this
-	// approach tends to add points into previously unmeasured areas while
-	// discarding info from areas with highly redundant info.
-	// NOTE bruceo: we used to randomly choose which point to discard. now
-	// we always choose the first to allow for consistent results with test data.
-	for (i = 0; i < m_cSamp; i++) {
-		for (j = i + 1; j < m_cSamp; j++) {
-			dx = m_aSamp[i].m_pntRaw.x - m_aSamp[j].m_pntRaw.x;
-			dy = m_aSamp[i].m_pntRaw.y - m_aSamp[j].m_pntRaw.y;
-			dz = m_aSamp[i].m_pntRaw.z - m_aSamp[j].m_pntRaw.z;
-			distsq = (dx * dx) + (dy * dy) + (dz * dz);
-			if (distsq < minsum) {
-				minsum = distsq;
-				minindex = i;
-			}
-		}
-	}
-	return minindex;
+
+	return -1;
 }
 
 
 void MagCalibrator::AddMagPoint(const SPoint & BpFast, SPoint * pBcFast)
 {
-	int iSampDest = m_cSamp;
+	MagSample samp(BpFast, m_cal_V, m_cal_invW);
 
-	// If the buffer is full, we must choose which old data to discard.
-	// We must choose wisely!  Throwing away the wrong data could prevent
-	// collecting enough data distributed across the entire 3D angular
-	// range, preventing a decent cal from ever happening at all.  Making
-	// any assumption about good vs bad data is particularly risky,
-	// because being wrong could cause an unstable feedback loop where
-	// bad data leads to wrong decisions which leads to even worse data.
-	// But if done well, purging bad data has massive potential to
-	// improve results.  The trick is telling the good from the bad while
-	// still in the process of learning what's good...
-	if (iSampDest >= s_cSampMax)
+	if (pBcFast)
 	{
-		iSampDest = ISampChooseDiscard();
-		if (iSampDest < 0 || iSampDest >= s_cSampMax) {
-			iSampDest = 0;
-		}
+		*pBcFast = samp.m_pntCal;
 	}
+
+	// when the buffer is full, check for field-strength outliers to replace;
+	// otherwise Add handles region-based eviction internally
+
+	int iSampEvict = (m_samps.CSamp() >= s_cSampMax) ? ISampChooseDiscard() : -1;
+
+	if (iSampEvict >= 0)
+		m_samps.Replace(iSampEvict, samp);
 	else
-	{
-		++m_cSamp;
-	}
-
-	// add it to the calibration buffer
-
-	m_aSamp[iSampDest].m_pntRaw = BpFast;
-	ApplyCalibration(iSampDest);
-	*pBcFast = m_aSamp[iSampDest].m_pntCal;
+		m_samps.Add(samp);
 
 	// NOTE: we do not update our quality metrics on every new sample.
 	//	instead, we update them after every new calibration is accepted
@@ -199,7 +243,7 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 	if (++m_new_wait_count < s_new_wait_count_max) return false;
 	m_new_wait_count = 0;
 
-	if (m_cSamp < MINMEASUREMENTS4CAL) return false;
+	if (m_samps.CSamp() < MINMEASUREMENTS4CAL) return false;
 
 	if (m_solver != SOLVER_Nil) {
 		// age the existing fit error to avoid one good calibration locking out future updates
@@ -207,11 +251,11 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 	}
 
 	// is enough data collected
-	if (m_cSamp < MINMEASUREMENTS7CAL) {
+	if (m_samps.CSamp() < MINMEASUREMENTS7CAL) {
 		solver = SOLVER_4Inv;
 		UpdateCalibration4INV(); // 4 element matrix inversion calibration
 		if (m_errorFitNext < 12.0f) m_errorFitNext = 12.0f;
-	} else if (m_cSamp < MINMEASUREMENTS10CAL) {
+	} else if (m_samps.CSamp() < MINMEASUREMENTS10CAL) {
 		solver = SOLVER_7Eig;
 		UpdateCalibration7EIG(); // 7 element eigenpair calibration
 		if (m_errorFitNext < 7.5f) m_errorFitNext = 7.5f;
@@ -253,16 +297,13 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 				const float & x = cal_V_Diff[0];
 				const float & y = cal_V_Diff[1];
 				const float & z = cal_V_Diff[2];
-				
+
 				*pSMagChange = sqrtf(x * x + y * y + z * z);
 			}
 
 			// re-apply calibration to all our samples and update our quality metrics
 
-			for (i = 0; i < m_cSamp; ++i)
-			{
-				ApplyCalibration(i);
-			}
+			m_samps.Recalibrate(m_cal_V, m_cal_invW);
 
 			m_quality.Reset();
 			m_quality.Ensure(*this);
@@ -308,11 +349,11 @@ void MagCalibrator::UpdateCalibration4INV()
 	}
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
 
 	// use from MINEQUATIONS up to MAXEQUATIONS entries from magnetic buffer to compute matrices
-	for (j = 0; j < m_cSamp; j++) {
-		const SPoint & BpCur = m_aSamp[j].m_pntRaw;
+	for (j = 0; j < m_samps.CSamp(); j++) {
+		const SPoint & BpCur = m_samps.Samp(j).m_pntRaw;
 
 		// store scaled and offset fBp[XYZ] in m_vecA[0-2] and fBp[XYZ]^2 in m_vecA[3-5]
 		for (k = X; k <= Z; k++) {
@@ -347,7 +388,7 @@ void MagCalibrator::UpdateCalibration4INV()
 	}
 
 	// set the last element of the measurement matrix to the number of buffer elements used
-	m_matA[3][3] = (float) m_cSamp;
+	m_matA[3][3] = float(m_samps.CSamp());
 
 	// use above diagonal elements of symmetric m_matA to set both m_matB and m_matA to X^T.X
 	for (i = 0; i < 4; i++) {
@@ -404,7 +445,7 @@ void MagCalibrator::UpdateCalibration4INV()
 
 	// calculate the trial fit error (percent) normalized to number of measurements
 	// and scaled geomagnetic field strength
-	m_errorFitNext = sqrtf(fE / (float) m_cSamp) * 100.0F /
+	m_errorFitNext = sqrtf(fE / float(m_samps.CSamp())) * 100.0F /
 			(2.0F * m_calNext_B * m_calNext_B);
 
 	// correct the hard iron estimate for FMATRIXSCALING and the offsets applied (result in uT)
@@ -415,12 +456,6 @@ void MagCalibrator::UpdateCalibration4INV()
 	// correct the geomagnetic field strength B to correct scaling (result in uT)
 	m_calNext_B *= DEFAULTB;
 }
-
-
-
-
-
-
 
 
 
@@ -437,7 +472,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 	fscaling = 1.0F / DEFAULTB;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
 
 	// zero the on and above diagonal elements of the 7x7 symmetric measurement matrix m_matA
 	for (m = 0; m < 7; m++) {
@@ -447,8 +482,8 @@ void MagCalibrator::UpdateCalibration7EIG()
 	}
 
 	// place from MINEQUATIONS to MAXEQUATIONS entries into product matrix m_matA
-	for (j = 0; j < m_cSamp; j++) {
-		const SPoint& BpCur = m_aSamp[j].m_pntRaw;
+	for (j = 0; j < m_samps.CSamp(); j++) {
+		const SPoint& BpCur = m_samps.Samp(j).m_pntRaw;
 
 		// apply the offset and scaling and store in m_vecA
 		for (k = X; k <= Z; k++) {
@@ -473,7 +508,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 	}
 
 	// finally set the last element m_matA[6][6] to the number of measurements
-	m_matA[6][6] = (float) m_cSamp;
+	m_matA[6][6] = float(m_samps.CSamp());
 
 	// copy the above diagonal elements of m_matA to below the diagonal
 	for (m = 1; m < 7; m++) {
@@ -519,7 +554,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 
 	// calculate the trial normalized fit error as a percentage
 	m_errorFitNext = 50.0F *
-		sqrtf(fabs(m_vecA[j]) / (float) m_cSamp) / fabs(ftmp);
+		sqrtf(fabs(m_vecA[j]) / float(m_samps.CSamp())) / fabs(ftmp);
 
 	// normalize the ellipsoid matrix A to unit determinant
 	f3x3matrixAeqAxScalar(m_A, powf(det, -(ONETHIRD)));
@@ -540,7 +575,6 @@ void MagCalibrator::UpdateCalibration7EIG()
 
 
 
-
 // 10 element calibration using direct eigen-decomposition
 void MagCalibrator::UpdateCalibration10EIG()
 {
@@ -553,7 +587,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 	fscaling = 1.0F / DEFAULTB;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_aSamp[0].m_pntRaw;
+	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
 
 	// zero the on and above diagonal elements of the 10x10 symmetric measurement matrix m_matA
 	for (m = 0; m < 10; m++) {
@@ -563,8 +597,8 @@ void MagCalibrator::UpdateCalibration10EIG()
 	}
 
 	// sum between MINEQUATIONS to MAXEQUATIONS entries into the 10x10 product matrix m_matA
-	for (j = 0; j < m_cSamp; j++) {
-		const SPoint& BpCur = m_aSamp[j].m_pntRaw;
+	for (j = 0; j < m_samps.CSamp(); j++) {
+		const SPoint& BpCur = m_samps.Samp(j).m_pntRaw;
 
 		// apply the fixed offset and scaling and enter into m_vecA[6-8]
 		for (k = X; k <= Z; k++) {
@@ -594,7 +628,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 	}
 
 	// set the last element m_matA[9][9] to the number of measurements
-	m_matA[9][9] = (float) m_cSamp;
+	m_matA[9][9] = float(m_samps.CSamp());
 
 	// copy the above diagonal elements of symmetric product matrix m_matA to below the diagonal
 	for (m = 1; m < 10; m++) {
@@ -655,7 +689,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 
 	// calculate the trial normalized fit error as a percentage
 	m_errorFitNext = 50.0F * sqrtf(
-		fabs(m_vecA[j]) / (float) m_cSamp) /
+		fabs(m_vecA[j]) / float(m_samps.CSamp())) /
 		(m_calNext_B * m_calNext_B);
 
 	// correct for the measurement matrix offset and scaling and
@@ -709,23 +743,44 @@ void MagCalibrator::UpdateCalibration10EIG()
 	}
 }
 
-void MagCalibrator::ApplyCalibration(int iSamp)
+void MagCalibrator::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
 {
-	MagSample * pSamp = &m_aSamp[iSamp];
+	memset(m_mpRegionCSamp, 0, sizeof(m_mpRegionCSamp));
 
-	float x = pSamp->m_pntRaw.x - m_cal_V[0];
-	float y = pSamp->m_pntRaw.y - m_cal_V[1];
-	float z = pSamp->m_pntRaw.z - m_cal_V[2];
+	for (int iSamp = 0; iSamp < m_cSamp; ++iSamp)
+	{
+		m_aSamp[iSamp].Calibrate(cal_V, cal_invW);
+		m_mpRegionCSamp[m_aSamp[iSamp].m_region]++;
+	}
+}
 
-	pSamp->m_pntCal.x = x * m_cal_invW[0][0] + y * m_cal_invW[0][1] + z * m_cal_invW[0][2];
-	pSamp->m_pntCal.y = x * m_cal_invW[1][0] + y * m_cal_invW[1][1] + z * m_cal_invW[1][2];
-	pSamp->m_pntCal.z = x * m_cal_invW[2][0] + y * m_cal_invW[2][1] + z * m_cal_invW[2][2];
+void MagSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+{
+	float x = m_pntRaw.x - cal_V[0];
+	float y = m_pntRaw.y - cal_V[1];
+	float z = m_pntRaw.z - cal_V[2];
 
-	x = pSamp->m_pntCal.x;
-	y = pSamp->m_pntCal.y;
-	z = pSamp->m_pntCal.z;
+	m_pntCal.x = x * cal_invW[0][0] + y * cal_invW[0][1] + z * cal_invW[0][2];
+	m_pntCal.y = x * cal_invW[1][0] + y * cal_invW[1][1] + z * cal_invW[1][2];
+	m_pntCal.z = x * cal_invW[2][0] + y * cal_invW[2][1] + z * cal_invW[2][2];
 
-	pSamp->m_field = sqrtf(x * x + y * y + z * z);
+	x = m_pntCal.x;
+	y = m_pntCal.y;
+	z = m_pntCal.z;
+
+	m_field = sqrtf(x * x + y * y + z * z);
+
+	if (m_field > 0.0f)
+	{
+		m_region = static_cast<REGION>(g_sphere_partition.RegionFromXyz(
+			m_pntCal.x / m_field,
+			m_pntCal.y / m_field,
+			m_pntCal.z / m_field));
+	}
+	else
+	{
+		m_region = static_cast<REGION>(0);
+	}
 }
 
 } // namespace libcalib
