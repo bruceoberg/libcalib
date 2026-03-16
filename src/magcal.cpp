@@ -69,36 +69,51 @@ MagCalibrator::CSampleSet::CSampleSet()
 {
 }
 
-void MagCalibrator::CSampleSet::Add(const MagSample & samp)
+void MagCalibrator::CSampleSet::AddSample(MagCalibrator * pMagcal, const MagSample & samp)
 {
-	int iSampDest;
+	int iSampDest = -1;
 
 	if (m_cSamp < s_cSampMax)
 	{
 		iSampDest = m_cSamp;
-		m_cSamp++;
 	}
-	else
+
+	// when the buffer is full, first check for field-strength outliers to replace
+
+	if (iSampDest < 0)
+	{
+		iSampDest = pMagcal->ISampFieldOutlier(samp.m_region);
+	}
+
+	// if still full, pick eldest from our most populated region.
+
+	if (iSampDest < 0)
 	{
 		// pigeonhole: at least one region has >1 sample
 		REGION regionEvict = RegionMostPopulated();
 		iSampDest = ISampOldestInRegion(regionEvict);
-		if (iSampDest < 0)
-			iSampDest = 0;
-		m_mpRegionCSamp[m_aSamp[iSampDest].m_region]--;
+	}
+
+	// still full? hard to imagine but ok.
+
+	if (iSampDest < 0)
+	{
+		iSampDest = 0;
+	}
+
+	if (iSampDest < m_cSamp)
+	{
+		--m_mpRegionCSamp[m_aSamp[iSampDest].m_region];
+	}
+	else
+	{
+		++m_cSamp;
 	}
 
 	m_aSamp[iSampDest] = samp;
 	m_aSamp[iSampDest].m_id = m_idNext++;
-	m_mpRegionCSamp[samp.m_region]++;
-}
-
-void MagCalibrator::CSampleSet::Replace(int iSamp, const MagSample & samp)
-{
-	m_mpRegionCSamp[m_aSamp[iSamp].m_region]--;
-	m_aSamp[iSamp] = samp;
-	m_aSamp[iSamp].m_id = m_idNext++;
-	m_mpRegionCSamp[samp.m_region]++;
+	
+	++m_mpRegionCSamp[samp.m_region];
 }
 
 REGION MagCalibrator::CSampleSet::RegionMostPopulated() const
@@ -167,47 +182,55 @@ MagCalibrator::MagCalibrator()
 	m_cal_B = 50.0f;
 }
 
-int MagCalibrator::ISampChooseDiscard(REGION regionIncoming)
+int MagCalibrator::ISampFieldOutlier(REGION regionIncoming)
 {
-	float gaps, error, errormax;
-	int i, j;
-
 	// When enough data is collected (gaps error is low), assume we
 	// have a pretty good coverage and the field stregth is known.
-	gaps = m_quality.m_errGaps;
-	if (gaps < 25.0f) {
+	float errGaps = m_quality.m_errGaps;
+	if (errGaps < 25.0f && FHasSolution())
+	{
 		// occasionally look for points farthest from average field strength
 		// always rate limit assumption-based data purging, but allow the
 		// rate to increase as the angular coverage improves.
-		if (gaps < 1.0f) gaps = 1.0f;
-		if (++m_discard_count > static_cast<int>(gaps * 10.0f)) {
-			j = m_samps.CSamp();
-			errormax = 0.0f;
-			for (i = 0; i < m_samps.CSamp(); i++) {
-				// if m_cal_B is bad, things could go horribly wrong
-				error = fabsf(m_samps.Samp(i).m_field - m_cal_B);
-				if (error > errormax) {
-					errormax = error;
-					j = i;
+		if (errGaps < 1.0f)
+		{
+			errGaps = 1.0f;
+		}
+
+		if (++m_discard_count > int(errGaps * 10.0f))
+		{
+			int iSampOutlier = -1;
+			float dUtBOutlier = 0.0f;
+			
+			for (int iSamp = 0; iSamp < m_samps.CSamp(); iSamp++)
+			{
+				float dUtB = fabsf(m_samps.Samp(iSamp).m_field - m_cal_B);
+				
+				if (dUtB > dUtBOutlier)
+				{
+					dUtBOutlier = dUtB;
+					iSampOutlier = iSamp;
 				}
 			}
-			if (j < m_samps.CSamp())
+
+			if (iSampOutlier >= 0)
 			{
 				// only evict this outlier if its region is at least as populated
 				// as the region we're about to add to — evictions must not make
 				// coverage less uniform than additions
-				if (m_samps.CSampFromRegion(m_samps.Samp(j).m_region) >=
+				if (m_samps.CSampFromRegion(m_samps.Samp(iSampOutlier).m_region) >=
 					m_samps.CSampFromRegion(regionIncoming))
 				{
 					m_discard_count = 0;
-					return j;
+					return iSampOutlier;
 				}
 				// candidate would depopulate a relatively sparse region —
 				// fall through to region-based eviction below
 			}
 		}
 	}
-	else {
+	else
+	{
 		m_discard_count = 0;
 	}
 
@@ -215,24 +238,16 @@ int MagCalibrator::ISampChooseDiscard(REGION regionIncoming)
 }
 
 
-void MagCalibrator::AddMagPoint(const SPoint & BpFast, SPoint * pBcFast)
+void MagCalibrator::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 {
-	MagSample samp(BpFast, m_cal_V, m_cal_invW);
+	MagSample samp(pntRaw, m_cal_V, m_cal_invW);
 
-	if (pBcFast)
+	if (pPntCal)
 	{
-		*pBcFast = samp.m_pntCal;
+		*pPntCal = samp.m_pntCal;
 	}
 
-	// when the buffer is full, check for field-strength outliers to replace;
-	// otherwise Add handles region-based eviction internally
-
-	int iSampEvict = (m_samps.CSamp() >= s_cSampMax) ? ISampChooseDiscard(samp.m_region) : -1;
-
-	if (iSampEvict >= 0)
-		m_samps.Replace(iSampEvict, samp);
-	else
-		m_samps.Add(samp);
+	m_samps.AddSample(this, samp);
 
 	// NOTE: we do not update our quality metrics on every new sample.
 	//	instead, we update them after every new calibration is accepted

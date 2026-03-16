@@ -64,8 +64,7 @@ struct MagCalibrator
 	public:
 				CSampleSet();
 
-		void	Add(const MagSample & samp);
-		void	Replace(int iSamp, const MagSample & samp);
+		void	AddSample(MagCalibrator * pMagcal, const MagSample & samp);
 		void	Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]);
 
 		REGION	RegionMostPopulated() const;
@@ -92,7 +91,7 @@ struct MagCalibrator
 
 	void	Reset()
 				{ *this = MagCalibrator(); }
-	void	AddMagPoint(const SPoint & BpFast, SPoint * pBcFast);
+	void	AddSample(const SPoint & BpFast, SPoint * pBcFast);
 	bool	FHasNewCalibration(float * pSMadDiff);
 	bool	FHasSolution() const
 				{ return m_solver != SOLVER_Nil; }
@@ -125,7 +124,7 @@ struct MagCalibrator
 private:
 	friend class Calibrator;
 
-	int		ISampChooseDiscard(REGION regionIncoming);
+	int		ISampFieldOutlier(REGION regionIncoming);
 
 	void	UpdateCalibration4INV();
 	void	UpdateCalibration7EIG();
@@ -143,7 +142,7 @@ private:
 	float	m_vecA[10];					// scratch 10x1 vector used by calibration algorithms
 	float	m_vecB[4];					// scratch 4x1 vector used by calibration algorithms
 
-	int		m_discard_count;				// ISampChooseDiscard() counter for choosing field strength discards
+	int		m_discard_count;				// ISampFieldOutlier() counter for choosing field strength discards
 	int		m_new_wait_count;				// number of times FHasNewCalibration() had been called without doing any work
 
 	libcalib::MagQuality

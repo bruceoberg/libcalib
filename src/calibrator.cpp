@@ -20,7 +20,7 @@ void Calibrator::AddSample(const SSample & samp)
 {
 	SPoint pntMagCal;
 
-	m_magcal.AddMagPoint(samp.m_pntMag, &pntMagCal);
+	m_magcal.AddSample(samp.m_pntMag, &pntMagCal);
 
 	float sMagChange = 0.0f;
 
