@@ -19,9 +19,9 @@ public:
 	}
 
 	Calibrator()
-		{ reset(); }
+		{ Reset(); }
 
-	void reset();
+	void Reset();
 	void AddSample(const SSample & samp);
 
 	MagCalibrator m_magcal;
@@ -29,10 +29,6 @@ public:
 
 private:
 	int m_force_orientation_countdown;  // countdown to reseting m_ahrs in add_raw_data()
-
-	CNxp m_nxp;	
-	CFusion m_fusion;
-	CMahony m_mahony;
 
 	CFusion m_ahrs;			// Altitude Heading Reference System (could be Mahoney/Nxp/Fusion)
 

@@ -5,7 +5,7 @@
 namespace libcalib
 {
 
-void Calibrator::reset()
+void Calibrator::Reset()
 {
 	m_magcal.Reset();
 
