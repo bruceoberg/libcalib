@@ -125,7 +125,7 @@ struct MagCalibrator
 private:
 	friend class Calibrator;
 
-	int		ISampChooseDiscard();
+	int		ISampChooseDiscard(REGION regionIncoming);
 
 	void	UpdateCalibration4INV();
 	void	UpdateCalibration7EIG();

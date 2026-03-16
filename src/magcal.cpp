@@ -167,9 +167,9 @@ MagCalibrator::MagCalibrator()
 	m_cal_B = 50.0f;
 }
 
-int MagCalibrator::ISampChooseDiscard()
+int MagCalibrator::ISampChooseDiscard(REGION regionIncoming)
 {
-	float gaps, field, error, errormax;
+	float gaps, error, errormax;
 	int i, j;
 
 	// When enough data is collected (gaps error is low), assume we
@@ -191,10 +191,19 @@ int MagCalibrator::ISampChooseDiscard()
 					j = i;
 				}
 			}
-			m_discard_count = 0;
-			if (j < m_samps.CSamp()) {
-				//printf("worst error at %d\n", j);
-				return j;
+			if (j < m_samps.CSamp())
+			{
+				// only evict this outlier if its region is at least as populated
+				// as the region we're about to add to — evictions must not make
+				// coverage less uniform than additions
+				if (m_samps.CSampFromRegion(m_samps.Samp(j).m_region) >=
+					m_samps.CSampFromRegion(regionIncoming))
+				{
+					m_discard_count = 0;
+					return j;
+				}
+				// candidate would depopulate a relatively sparse region —
+				// fall through to region-based eviction below
 			}
 		}
 	}
@@ -218,7 +227,7 @@ void MagCalibrator::AddMagPoint(const SPoint & BpFast, SPoint * pBcFast)
 	// when the buffer is full, check for field-strength outliers to replace;
 	// otherwise Add handles region-based eviction internally
 
-	int iSampEvict = (m_samps.CSamp() >= s_cSampMax) ? ISampChooseDiscard() : -1;
+	int iSampEvict = (m_samps.CSamp() >= s_cSampMax) ? ISampChooseDiscard(samp.m_region) : -1;
 
 	if (iSampEvict >= 0)
 		m_samps.Replace(iSampEvict, samp);
