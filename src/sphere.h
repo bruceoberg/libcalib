@@ -1,7 +1,7 @@
 #pragma once
 
 #include "libcalib/common.h"
-#include "libcalib/magcal.h"
+#include "libcalib/fitter.h"
 
 namespace libcalib
 {

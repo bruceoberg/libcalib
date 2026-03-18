@@ -9,14 +9,14 @@ target_sources(libcalib
 		include/libcalib/calibrator.h
 		include/libcalib/common.h
 		include/libcalib/fusion.h
-		include/libcalib/magcal.h
+		include/libcalib/fitter.h
 		include/libcalib/mahony.h
 		include/libcalib/nxp.h
 		include/libcalib/quality.h
 		include/libcalib/sampler.h
 		src/calibrator.cpp
 		src/fusion.cpp
-		src/magcal.cpp
+		src/fitter.cpp
 		src/mahony.cpp
 		src/matrix.cpp
 		src/matrix.h

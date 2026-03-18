@@ -1,6 +1,6 @@
 #pragma once
 
-// libcalib_ahrs.h — IAhrs interface for all AHRS implementations.
+// IAhrs interface for all AHRS implementations.
 // Concrete subclasses: AhrsNxp, AhrsMahony, AhrsFusion.
 // Calibrator holds a non-owning IAhrs* and calls through this interface;
 // implementations own their internal state and oversampler (if any).
@@ -10,7 +10,7 @@
 namespace libcalib
 {
 
-class CSphereFitter;  // libcalib_magcal.h
+class CSphereFitter;
 
 class IAhrs  // tag: ahrs
 {

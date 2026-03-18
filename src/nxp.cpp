@@ -1,5 +1,5 @@
 #include "libcalib/nxp.h"
-#include "libcalib/magcal.h"
+#include "libcalib/fitter.h"
 
 #include "matrix.h"
 
