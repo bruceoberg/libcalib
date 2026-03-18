@@ -16,15 +16,15 @@ MagQuality::MagQuality()
 {
 }
 
-void MagQuality::Ensure(const CSphereFitter & sphitter)
+void MagQuality::Ensure(const Sphere::CFitter & fitter)
 {
 	if (m_isValid)
 		return;
 
-	m_errGaps = ErrGaps(sphitter);
-	m_errVariance = ErrVariance(sphitter);
-	m_errWobble = ErrWobble(sphitter);
-	m_errFit = sphitter.m_errFit;
+	m_errGaps = ErrGaps(fitter);
+	m_errVariance = ErrVariance(fitter);
+	m_errWobble = ErrWobble(fitter);
+	m_errFit = fitter.m_errFit;
 
 	m_isValid = true;
 }
@@ -59,12 +59,12 @@ bool MagQuality::AreErrorsBad() const
 
 // How many surface gaps
 
-float MagQuality::ErrGaps(const CSphereFitter & sphitter)
+float MagQuality::ErrGaps(const Sphere::CFitter & fitter)
 {
 	float error = 0.0f;
 
-	for (int region = 0; region < REGION_Max; region++) {
-		int cSamp = sphitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
+	for (int region = 0; region < Sphere::REGION_Max; region++) {
+		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<Sphere::REGION>(region));
 
 		if (cSamp == 0) {
 			error += 1.0f;
@@ -80,49 +80,49 @@ float MagQuality::ErrGaps(const CSphereFitter & sphitter)
 
 // Variance in magnitude
 
-float MagQuality::ErrVariance(const CSphereFitter & sphitter)
+float MagQuality::ErrVariance(const Sphere::CFitter & fitter)
 {
-	if (sphitter.m_samps.CSamp() == 0)
+	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;
 
 	float sum = 0.0f;
-	for (int i = 0; i < sphitter.m_samps.CSamp(); i++) {
-		sum += sphitter.m_samps.Samp(i).m_field;
+	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
+		sum += fitter.m_samps.Samp(i).m_field;
 	}
 
-	float mean = sum / float(sphitter.m_samps.CSamp());
+	float mean = sum / float(fitter.m_samps.CSamp());
 
 	float variance = 0.0f;
-	for (int i = 0; i < sphitter.m_samps.CSamp(); i++) {
-		float diff = sphitter.m_samps.Samp(i).m_field - mean;
+	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
+		float diff = fitter.m_samps.Samp(i).m_field - mean;
 		variance += diff * diff;
 	}
 
-	variance /= float(sphitter.m_samps.CSamp());
+	variance /= float(fitter.m_samps.CSamp());
 
 	return sqrtf(variance) / mean * s_errMax;
 }
 
 // Offset of piecewise average data from ideal sphere surface
 
-float MagQuality::ErrWobble(const CSphereFitter & sphitter)
+float MagQuality::ErrWobble(const Sphere::CFitter & fitter)
 {
-	if (sphitter.m_samps.CSamp() == 0)
+	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;
 
 	float sum = 0.0f;
-	for (int i = 0; i < sphitter.m_samps.CSamp(); i++) {
-		sum += sphitter.m_samps.Samp(i).m_field;
+	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
+		sum += fitter.m_samps.Samp(i).m_field;
 	}
 
-	float radius = sum / float(sphitter.m_samps.CSamp());
+	float radius = sum / float(fitter.m_samps.CSamp());
 
 	// compute per-region sums locally
 
-	SPoint mpRegionSum[REGION_Max] = {};
-	for (int i = 0; i < sphitter.m_samps.CSamp(); i++)
+	SPoint mpRegionSum[Sphere::REGION_Max] = {};
+	for (int i = 0; i < fitter.m_samps.CSamp(); i++)
 	{
-		const MagSample & samp = sphitter.m_samps.Samp(i);
+		const Sphere::MagSample & samp = fitter.m_samps.Samp(i);
 		mpRegionSum[samp.m_region].x += samp.m_pntCal.x;
 		mpRegionSum[samp.m_region].y += samp.m_pntCal.y;
 		mpRegionSum[samp.m_region].z += samp.m_pntCal.z;
@@ -133,9 +133,9 @@ float MagQuality::ErrWobble(const CSphereFitter & sphitter)
 	float zoff = 0.0f;
 	int cRegionHit = 0;
 
-	for (int region = 0; region < REGION_Max; region++)
+	for (int region = 0; region < Sphere::REGION_Max; region++)
 	{
-		int cSamp = sphitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
+		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<Sphere::REGION>(region));
 		if (cSamp > 0)
 		{
 			float x = mpRegionSum[region].x / float(cSamp);

@@ -6,6 +6,11 @@
 namespace libcalib
 {
 
+class Calibrator;
+
+namespace Sphere
+{
+
 enum REGION
 {
 	REGION_Max = 100,
@@ -42,7 +47,7 @@ struct MagSample
 
 // magnetic calibration & buffer structure
 
-struct CSphereFitter
+struct CFitter
 {
 	static const int s_cSampMax = 650; // Freescale's lib needs at least 392
 
@@ -64,7 +69,7 @@ struct CSphereFitter
 	public:
 				CSampleSet();
 
-		void	AddSample(CSphereFitter * pSphitter, const MagSample & samp);
+		void	AddSample(CFitter * pFitter, const MagSample & samp);
 		void	Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]);
 
 		REGION	RegionMostPopulated() const;
@@ -87,10 +92,10 @@ struct CSphereFitter
 				m_idNext;
 	};
 
-			CSphereFitter();
+			CFitter();
 
 	void	Reset()
-				{ *this = CSphereFitter(); }
+				{ *this = CFitter(); }
 	void	AddSample(const SPoint & BpFast, SPoint * pBcFast);
 	bool	FHasNewCalibration(float * pSMadDiff);
 	bool	FHasSolution() const
@@ -122,7 +127,7 @@ struct CSphereFitter
 			m_samps;				// sample buffer with region bookkeeping
 
 private:
-	friend class Calibrator;
+	friend class ::libcalib::Calibrator;
 
 	int		ISampFieldOutlier(REGION regionIncoming);
 
@@ -145,11 +150,12 @@ private:
 	int		m_discard_count;				// ISampFieldOutlier() counter for choosing field strength discards
 	int		m_new_wait_count;				// number of times FHasNewCalibration() had been called without doing any work
 
-	libcalib::MagQuality
+	MagQuality
 			m_quality;
 
 	static constexpr int
 			s_new_wait_count_max = 20; // in FHasNewCalibration() only do work after this many calls
 };
 
+} // namespace Sphere
 } // namespace libcalib

@@ -9,7 +9,7 @@ namespace libcalib
 		const SPoint &pntAccel,
 		const SPoint &pntGyro,
 		const SPoint &pntMag,
-		const CSphereFitter &sphitter)
+		const Sphere::CFitter &fitter)
 	{
 		m_sampler.AddSample(pntAccel, pntGyro, pntMag);
 
@@ -19,7 +19,7 @@ namespace libcalib
 				m_sampler.m_accel,
 				m_sampler.m_gyro,
 				m_sampler.m_mag,
-				sphitter);
+				fitter);
 		}
 	}
 
@@ -27,7 +27,7 @@ namespace libcalib
 		const SSampler::SAccel & accel,
 		const SSampler::SGyro & gyro,
 		const SSampler::SMag & mag,
-		const CSphereFitter &sphitter)
+		const Sphere::CFitter &fitter)
 	{
 		constexpr int X = 0;
 		constexpr int Y = 1;
@@ -35,7 +35,7 @@ namespace libcalib
 
 		for (int i = 0; i < m_sampler.s_cSample; i++)
 		{
-			if (sphitter.FHasSolution())
+			if (fitter.FHasSolution())
 			{
 				UpdateSample(
 					RadFromDeg(gyro.YpFast[i][X]),

@@ -42,9 +42,11 @@
 
 namespace libcalib
 {
+namespace Sphere
+{
 
 // pigeonhole invariant: when the buffer is full, at least one region has >1 sample
-static_assert(CSphereFitter::s_cSampMax > REGION_Max);
+static_assert(CFitter::s_cSampMax > REGION_Max);
 
 constexpr float DEFAULTB = 50.0F;				// default geomagnetic field (uT)
 constexpr int X = 0;							// vector components
@@ -61,7 +63,7 @@ constexpr float FITERRORAGINGSECS = 7200.0F;	// 2 hours: time for fit error to i
 
 // CSampleSet
 
-CSphereFitter::CSampleSet::CSampleSet()
+CFitter::CSampleSet::CSampleSet()
 : m_aSamp()
 , m_cSamp(0)
 , m_mpRegionCSamp()
@@ -69,7 +71,7 @@ CSphereFitter::CSampleSet::CSampleSet()
 {
 }
 
-void CSphereFitter::CSampleSet::AddSample(CSphereFitter * pSphitter, const MagSample & samp)
+void CFitter::CSampleSet::AddSample(CFitter * pFitter, const MagSample & samp)
 {
 	int iSampDest = -1;
 
@@ -82,7 +84,7 @@ void CSphereFitter::CSampleSet::AddSample(CSphereFitter * pSphitter, const MagSa
 
 	if (iSampDest < 0)
 	{
-		iSampDest = pSphitter->ISampFieldOutlier(samp.m_region);
+		iSampDest = pFitter->ISampFieldOutlier(samp.m_region);
 	}
 
 	// if still full, pick eldest from our most populated region.
@@ -116,7 +118,7 @@ void CSphereFitter::CSampleSet::AddSample(CSphereFitter * pSphitter, const MagSa
 	++m_mpRegionCSamp[samp.m_region];
 }
 
-REGION CSphereFitter::CSampleSet::RegionMostPopulated() const
+REGION CFitter::CSampleSet::RegionMostPopulated() const
 {
 	REGION regionBest = REGION_Nil;
 	int cSampBest = 1; // must be strictly greater than 1
@@ -133,7 +135,7 @@ REGION CSphereFitter::CSampleSet::RegionMostPopulated() const
 	return regionBest;
 }
 
-int CSphereFitter::CSampleSet::ISampOldestInRegion(REGION region) const
+int CFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 {
 	int iSampOldest = -1;
 	MagSample::ID idOldest = ~MagSample::ID(0); // max value
@@ -151,7 +153,7 @@ int CSphereFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 }
 
 
-CSphereFitter::CSphereFitter()
+CFitter::CFitter()
 	: m_cal_V()
 	, m_cal_invW()
 	, m_cal_B()
@@ -182,7 +184,7 @@ CSphereFitter::CSphereFitter()
 	m_cal_B = 50.0f;
 }
 
-int CSphereFitter::ISampFieldOutlier(REGION regionIncoming)
+int CFitter::ISampFieldOutlier(REGION regionIncoming)
 {
 	// When enough data is collected (gaps error is low), assume we
 	// have a pretty good coverage and the field stregth is known.
@@ -238,7 +240,7 @@ int CSphereFitter::ISampFieldOutlier(REGION regionIncoming)
 }
 
 
-void CSphereFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
+void CFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 {
 	MagSample samp(pntRaw, m_cal_V, m_cal_invW);
 
@@ -257,7 +259,7 @@ void CSphereFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 }
 
 // run the magnetic calibration
-bool CSphereFitter::FHasNewCalibration(float * pSMagChange)
+bool CFitter::FHasNewCalibration(float * pSMagChange)
 {
 	int i, j;			// loop counters
 	SOLVER solver = SOLVER_Nil;		// magnetic solver used
@@ -341,7 +343,7 @@ bool CSphereFitter::FHasNewCalibration(float * pSMagChange)
 
 
 // 4 element calibration using 4x4 matrix inverse
-void CSphereFitter::UpdateCalibration4INV()
+void CFitter::UpdateCalibration4INV()
 {
 	float fBp2;					// fBp[X]^2+fBp[Y]^2+fBp[Z]^2
 	float fSumBp4;				// sum of fBp2
@@ -485,7 +487,7 @@ void CSphereFitter::UpdateCalibration4INV()
 
 
 // 7 element calibration using direct eigen-decomposition
-void CSphereFitter::UpdateCalibration7EIG()
+void CFitter::UpdateCalibration7EIG()
 {
 	float det;					// matrix determinant
 	float fscaling;				// set to FUTPERCOUNT * FMATRIXSCALING
@@ -600,7 +602,7 @@ void CSphereFitter::UpdateCalibration7EIG()
 
 
 // 10 element calibration using direct eigen-decomposition
-void CSphereFitter::UpdateCalibration10EIG()
+void CFitter::UpdateCalibration10EIG()
 {
 	float det;					// matrix determinant
 	float fscaling;				// set to FUTPERCOUNT * FMATRIXSCALING
@@ -767,7 +769,7 @@ void CSphereFitter::UpdateCalibration10EIG()
 	}
 }
 
-void CSphereFitter::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+void CFitter::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
 {
 	memset(m_mpRegionCSamp, 0, sizeof(m_mpRegionCSamp));
 
@@ -796,7 +798,7 @@ void MagSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]
 
 	if (m_field > 0.0f)
 	{
-		m_region = static_cast<REGION>(Sphere::RegionFromXyz(
+		m_region = static_cast<REGION>(RegionFromXyz(
 			m_pntCal.x / m_field,
 			m_pntCal.y / m_field,
 			m_pntCal.z / m_field));
@@ -807,4 +809,5 @@ void MagSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]
 	}
 }
 
+} // namespace Sphere
 } // namespace libcalib

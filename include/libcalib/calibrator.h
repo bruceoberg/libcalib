@@ -24,7 +24,7 @@ public:
 	void Reset();
 	void AddSample(const SSample & samp);
 
-	CSphereFitter m_sphitter;
+	Sphere::CFitter m_fitter;
 	SQuat m_current_orientation;
 
 private:

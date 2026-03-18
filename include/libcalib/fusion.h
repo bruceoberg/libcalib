@@ -17,7 +17,7 @@
 namespace libcalib
 {
 
-class CSphereFitter;
+namespace Sphere { class CFitter; }
 
 class CFusion : public IAhrs  // tag: fuse
 {
@@ -29,7 +29,7 @@ public:
 					const SPoint & pntAccel,
 					const SPoint & pntGyro,
 					const SPoint & pntMag,
-					const CSphereFitter & sphitter) override;
+					const Sphere::CFitter & fitter) override;
 	void		Read(SQuat * pQuat) const override;
 
 private:

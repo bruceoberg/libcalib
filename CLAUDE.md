@@ -47,7 +47,7 @@ devices that can't afford Fusion's computational cost.
 
 Key architectural decision: the AHRS backend is a dependency *of libcalib*, not wired
 separately by consumers. The choice between `FusionAhrsUpdate` (with magnetometer) vs
-`FusionAhrsUpdateNoMagnetometer` depends on `m_sphitter.FHasSolution()`, which is private to
+`FusionAhrsUpdateNoMagnetometer` depends on `m_fitter.FHasSolution()`, which is private to
 `Calibrator`. Consumers must not bypass this.
 
 ## Calibration state machine
@@ -65,7 +65,7 @@ produces calibration output. All display/feedback logic lives in the host, not h
 ## Key classes
 
 - `libcalib::Calibrator` — singleton, owns all calibration state, drives the AHRS
-- `libcalib::CSphereFitter` — magnetometer sphere fitting and quality metrics;
+- `libcalib::Sphere::CFitter` — magnetometer sphere fitting and quality metrics;
   `FHasSolution()` indicates whether a valid calibration has been computed
 
 ## Coding style
@@ -96,7 +96,7 @@ in the parent repo. Never leave dangling submodule references.
 
 ## Things to be careful about
 
-- `m_sphitter.FHasSolution()` is the correct way to test whether a valid magnetometer
+- `m_fitter.FHasSolution()` is the correct way to test whether a valid magnetometer
   calibration exists — the AHRS mag/no-mag branch must stay inside `Calibrator` and
   must not leak to consumers
 - Soft iron matrix uses enum indexing — keep the enum and matrix access in sync

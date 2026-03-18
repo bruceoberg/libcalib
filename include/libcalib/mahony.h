@@ -18,7 +18,7 @@ public:
 				const SPoint & pntAccel,
 				const SPoint & pntGyro,
 				const SPoint & pntMag,
-				const CSphereFitter & sphitter) override;
+				const Sphere::CFitter & fitter) override;
     void    Read(SQuat * pQuat) const override
 			{
 				pQuat->q0 = m_q0;
@@ -32,7 +32,7 @@ protected:
 				const SSampler::SAccel & accel,
 				const SSampler::SGyro & gyro,
 				const SSampler::SMag & mag,
-				const CSphereFitter & sphitter);
+				const Sphere::CFitter & fitter);
 	void	UpdateSample(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
 	void	UpdateSampleNoMag(float gx, float gy, float gz, float ax, float ay, float az);
 
