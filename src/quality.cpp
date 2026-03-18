@@ -7,7 +7,7 @@
 namespace libcalib
 {
 
-MagQuality::MagQuality()
+Sphere::SQuality::SQuality()
 : m_errGaps(s_errMax)
 , m_errVariance(s_errMax)
 , m_errWobble(s_errMax)
@@ -16,7 +16,7 @@ MagQuality::MagQuality()
 {
 }
 
-void MagQuality::Ensure(const Sphere::CFitter & fitter)
+void Sphere::SQuality::Ensure(const Sphere::CFitter & fitter)
 {
 	if (m_isValid)
 		return;
@@ -29,7 +29,7 @@ void MagQuality::Ensure(const Sphere::CFitter & fitter)
 	m_isValid = true;
 }
 
-bool MagQuality::AreErrorsOk() const
+bool Sphere::SQuality::AreErrorsOk() const
 {
 	if (m_errGaps >= s_errGapsOkMin)
 		return false;
@@ -43,7 +43,7 @@ bool MagQuality::AreErrorsOk() const
 	return true;
 }
 
-bool MagQuality::AreErrorsBad() const
+bool Sphere::SQuality::AreErrorsBad() const
 {
 	if (m_errGaps <= s_errGapsBadMax)
 		return false;
@@ -59,7 +59,7 @@ bool MagQuality::AreErrorsBad() const
 
 // How many surface gaps
 
-float MagQuality::ErrGaps(const Sphere::CFitter & fitter)
+float Sphere::SQuality::ErrGaps(const Sphere::CFitter & fitter)
 {
 	float error = 0.0f;
 
@@ -80,7 +80,7 @@ float MagQuality::ErrGaps(const Sphere::CFitter & fitter)
 
 // Variance in magnitude
 
-float MagQuality::ErrVariance(const Sphere::CFitter & fitter)
+float Sphere::SQuality::ErrVariance(const Sphere::CFitter & fitter)
 {
 	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;
@@ -105,7 +105,7 @@ float MagQuality::ErrVariance(const Sphere::CFitter & fitter)
 
 // Offset of piecewise average data from ideal sphere surface
 
-float MagQuality::ErrWobble(const Sphere::CFitter & fitter)
+float Sphere::SQuality::ErrWobble(const Sphere::CFitter & fitter)
 {
 	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;

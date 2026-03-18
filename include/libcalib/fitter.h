@@ -150,7 +150,7 @@ private:
 	int		m_discard_count;				// ISampFieldOutlier() counter for choosing field strength discards
 	int		m_new_wait_count;				// number of times FHasNewCalibration() had been called without doing any work
 
-	MagQuality
+	SQuality
 			m_quality;
 
 	static constexpr int

@@ -5,15 +5,17 @@
 namespace libcalib
 {
 
-namespace Sphere { class CFitter; }
+namespace Sphere {
 
-struct MagQuality
+class CFitter;
+
+struct SQuality
 {
-	MagQuality();
+	SQuality();
 	
 	void Reset()
 			{ m_isValid = false; }
-	void Ensure(const Sphere::CFitter & fitter);
+	void Ensure(const CFitter & fitter);
 
 	bool AreErrorsOk() const;
 	bool AreErrorsBad() const;
@@ -30,9 +32,9 @@ struct MagQuality
 	static constexpr float s_errMax = 100.0f;
 
 private:
-	float	ErrGaps(const Sphere::CFitter & fitter);
-	float	ErrVariance(const Sphere::CFitter & fitter);
-	float	ErrWobble(const Sphere::CFitter & fitter);
+	float	ErrGaps(const CFitter & fitter);
+	float	ErrVariance(const CFitter & fitter);
+	float	ErrWobble(const CFitter & fitter);
 
 	bool	m_isValid;
 
@@ -54,5 +56,7 @@ private:
 	static constexpr float s_errFitBadMax = 6.0f;
 
 };
+
+} // namespace Sphere
 
 } // namespace libcalib
