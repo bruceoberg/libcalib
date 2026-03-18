@@ -1,38 +1,5 @@
-// Copyright (c) 2014, Freescale Semiconductor, Inc.
-// All rights reserved.
-// vim: set ts=4:
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//     * Redistributions of source code must retain the above copyright
-//       notice, this list of conditions and the following disclaimer.
-//     * Redistributions in binary form must reproduce the above copyright
-//       notice, this list of conditions and the following disclaimer in the
-//       documentation and/or other materials provided with the distribution.
-//     * Neither the name of Freescale Semiconductor, Inc. nor the
-//       names of its contributors may be used to endorse or promote products
-//       derived from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL FREESCALE SEMICONDUCTOR, INC. BE LIABLE FOR ANY
-// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// This file contains magnetic calibration functions.  It is STRONGLY RECOMMENDED
-// that the casual developer NOT TOUCH THIS FILE.  The mathematics behind this file
-// is extremely complex, and it will be very easy (almost inevitable) that you screw
-// it up.
-//
-// Haha - This file has been edited!  Please do not blame or pester NXP (formerly
-//        Freescale) about the "almost inevitable" issues!
+#include "libcalib/fitter.h"
 
-#include "libcalib/calibrator.h"
 #include "matrix.h"
 #include "sphere.h"
 
@@ -71,7 +38,7 @@ CFitter::CSampleSet::CSampleSet()
 {
 }
 
-void CFitter::CSampleSet::AddSample(CFitter * pFitter, const MagSample & samp)
+void CFitter::CSampleSet::AddSample(CFitter * pFitter, const SSample & samp)
 {
 	int iSampDest = -1;
 
@@ -138,7 +105,7 @@ REGION CFitter::CSampleSet::RegionMostPopulated() const
 int CFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 {
 	int iSampOldest = -1;
-	MagSample::ID idOldest = ~MagSample::ID(0); // max value
+	SSample::ID idOldest = ~SSample::ID(0); // max value
 
 	for (int i = 0; i < m_cSamp; i++)
 	{
@@ -242,7 +209,7 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 
 void CFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 {
-	MagSample samp(pntRaw, m_cal_V, m_cal_invW);
+	SSample samp(pntRaw, m_cal_V, m_cal_invW);
 
 	if (pPntCal)
 	{
@@ -259,8 +226,44 @@ void CFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 }
 
 // run the magnetic calibration
+
+
 bool CFitter::FHasNewCalibration(float * pSMagChange)
 {
+	// Copyright (c) 2014, Freescale Semiconductor, Inc.
+	// All rights reserved.
+	// vim: set ts=4:
+	//
+	// Redistribution and use in source and binary forms, with or without
+	// modification, are permitted provided that the following conditions are met:
+	//     * Redistributions of source code must retain the above copyright
+	//       notice, this list of conditions and the following disclaimer.
+	//     * Redistributions in binary form must reproduce the above copyright
+	//       notice, this list of conditions and the following disclaimer in the
+	//       documentation and/or other materials provided with the distribution.
+	//     * Neither the name of Freescale Semiconductor, Inc. nor the
+	//       names of its contributors may be used to endorse or promote products
+	//       derived from this software without specific prior written permission.
+	//
+	// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+	// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+	// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+	// DISCLAIMED. IN NO EVENT SHALL FREESCALE SEMICONDUCTOR, INC. BE LIABLE FOR ANY
+	// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+	// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+	// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+	// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+	// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+	// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+	//
+	// This file contains magnetic calibration functions.  It is STRONGLY RECOMMENDED
+	// that the casual developer NOT TOUCH THIS FILE.  The mathematics behind this file
+	// is extremely complex, and it will be very easy (almost inevitable) that you screw
+	// it up.
+	//
+	// Haha - This file has been edited!  Please do not blame or pester NXP (formerly
+	//        Freescale) about the "almost inevitable" issues!
+
 	int i, j;			// loop counters
 	SOLVER solver = SOLVER_Nil;		// magnetic solver used
 
@@ -780,7 +783,7 @@ void CFitter::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal
 	}
 }
 
-void MagSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+void CFitter::SSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
 {
 	float x = m_pntRaw.x - cal_V[0];
 	float y = m_pntRaw.y - cal_V[1];

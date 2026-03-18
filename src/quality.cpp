@@ -125,7 +125,7 @@ float SQuality::ErrWobble(const CFitter & fitter)
 	SPoint mpRegionSum[REGION_Max] = {};
 	for (int i = 0; i < fitter.m_samps.CSamp(); i++)
 	{
-		const MagSample & samp = fitter.m_samps.Samp(i);
+		const auto & samp = fitter.m_samps.Samp(i);
 		mpRegionSum[samp.m_region].x += samp.m_pntCal.x;
 		mpRegionSum[samp.m_region].y += samp.m_pntCal.y;
 		mpRegionSum[samp.m_region].z += samp.m_pntCal.z;

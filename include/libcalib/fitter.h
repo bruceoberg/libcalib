@@ -17,34 +17,6 @@ enum REGION
 	REGION_Nil = -1,
 };
 
-struct MagSample
-{
-	typedef uint32_t ID;
-
-			MagSample() = default;
-
-			MagSample(
-				const SPoint & pntRaw,
-				const float (&cal_V)[3],
-				const float (&cal_invW)[3][3])
-			: m_pntRaw(pntRaw),
-			  m_pntCal(),
-			  m_field(),
-			  m_region(REGION_Nil),
-			  m_id()
-				{ Calibrate(cal_V, cal_invW); }
-
-	void	Calibrate(
-				const float (&cal_V)[3],
-				const float (&cal_invW)[3][3]);
-
-	SPoint	m_pntRaw;	// raw sample
-	SPoint	m_pntCal;	// calibrated sample
-	float	m_field;	// length of calibrated sample
-	REGION	m_region;	// sphere partition region (0..REGION_Max-1)
-	ID		m_id;		// monotonically increasing ID assigned at insertion; lower = older
-};
-
 // magnetic calibration & buffer structure
 
 struct CFitter
@@ -62,6 +34,34 @@ struct CFitter
 		SOLVER_Nil = -1
 	};
 
+	struct SSample
+	{
+		typedef uint32_t ID;
+
+				SSample() = default;
+
+				SSample(
+					const SPoint & pntRaw,
+					const float (&cal_V)[3],
+					const float (&cal_invW)[3][3])
+				: m_pntRaw(pntRaw),
+				  m_pntCal(),
+				  m_field(),
+				  m_region(REGION_Nil),
+				  m_id()
+					{ Calibrate(cal_V, cal_invW); }
+
+		void	Calibrate(
+					const float (&cal_V)[3],
+					const float (&cal_invW)[3][3]);
+
+		SPoint	m_pntRaw;	// raw sample
+		SPoint	m_pntCal;	// calibrated sample
+		float	m_field;	// length of calibrated sample
+		REGION	m_region;	// sphere partition region (0..REGION_Max-1)
+		ID		m_id;		// monotonically increasing ID assigned at insertion; lower = older
+	};
+
 	// encapsulates the sample buffer and per-region bookkeeping
 
 	class CSampleSet
@@ -69,7 +69,7 @@ struct CFitter
 	public:
 				CSampleSet();
 
-		void	AddSample(CFitter * pFitter, const MagSample & samp);
+		void	AddSample(CFitter * pFitter, const SSample & samp);
 		void	Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]);
 
 		REGION	RegionMostPopulated() const;
@@ -77,18 +77,18 @@ struct CFitter
 
 		int		CSamp() const
 					{ return m_cSamp; }
-		const MagSample &
+		const SSample &
 				Samp(int i) const
 					{ return m_aSamp[i]; }
 		int		CSampFromRegion(REGION region) const
 					{ return m_mpRegionCSamp[region]; }
 
 	private:
-		MagSample
+		SSample
 				m_aSamp[s_cSampMax];
 		int16_t	m_cSamp;
 		int		m_mpRegionCSamp[REGION_Max];
-		MagSample::ID
+		SSample::ID
 				m_idNext;
 	};
 
