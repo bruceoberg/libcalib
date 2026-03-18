@@ -1,10 +1,10 @@
 #pragma once
 
-#include "libcalib_common.h"
-#include "libcalib_magcal.h"
-#include "libcalib_fusion.h"
-#include "libcalib_mahony.h"
-#include "libcalib_nxp.h"
+#include "libcalib/common.h"
+#include "libcalib/magcal.h"
+#include "libcalib/fusion.h"
+#include "libcalib/mahony.h"
+#include "libcalib/nxp.h"
 
 namespace libcalib
 {

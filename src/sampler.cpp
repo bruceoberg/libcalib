@@ -1,4 +1,4 @@
-#include "libcalib_sampler.h"
+#include "libcalib/sampler.h"
 
 #include <math.h>
 

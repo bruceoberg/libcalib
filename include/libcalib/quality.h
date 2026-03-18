@@ -1,6 +1,6 @@
 #pragma once
 
-#include "libcalib_common.h"
+#include "libcalib/common.h"
 
 namespace libcalib
 {

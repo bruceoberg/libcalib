@@ -1,8 +1,8 @@
 #pragma once
 
-#include "libcalib_common.h"
-#include "libcalib_ahrs.h"
-#include "libcalib_sampler.h"
+#include "libcalib/common.h"
+#include "libcalib/ahrs.h"
+#include "libcalib/sampler.h"
 
 namespace libcalib
 {

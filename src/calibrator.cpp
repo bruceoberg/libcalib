@@ -1,4 +1,4 @@
-#include "libcalib.h"
+#include "libcalib/calibrator.h"
 
 #include <math.h>
 

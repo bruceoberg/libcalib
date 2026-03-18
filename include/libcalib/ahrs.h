@@ -5,7 +5,7 @@
 // Calibrator holds a non-owning IAhrs* and calls through this interface;
 // implementations own their internal state and oversampler (if any).
 
-#include "libcalib_common.h"
+#include "libcalib/common.h"
 
 namespace libcalib
 {

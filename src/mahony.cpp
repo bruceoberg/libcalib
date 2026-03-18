@@ -1,5 +1,5 @@
-#include "libcalib_mahony.h"
-#include "libcalib_magcal.h"
+#include "libcalib/mahony.h"
+#include "libcalib/magcal.h"
 
 #include <math.h>
 

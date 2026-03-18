@@ -5,13 +5,13 @@
 // oversample: FusionAhrs is designed to be called at the full sensor rate, so
 // AddSample feeds the filter on every call with no SSampler accumulation.
 //
-#include "libcalib_common.h"
-#include "libcalib_ahrs.h"
+#include "libcalib/common.h"
+#include "libcalib/ahrs.h"
 
-#define LIBCALIB_HAS_FUSION __has_include("Fusion.h")
+#define LIBCALIB_HAS_FUSION __has_include(<Fusion.h>)
 
 #if LIBCALIB_HAS_FUSION
-#include "Fusion.h"
+#include <Fusion.h>
 #endif
 
 namespace libcalib

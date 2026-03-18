@@ -1,5 +1,5 @@
-#include "libcalib_fusion.h"
-#include "libcalib_magcal.h"
+#include "libcalib/fusion.h"
+#include "libcalib/magcal.h"
 
 namespace libcalib
 {

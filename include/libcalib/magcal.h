@@ -1,7 +1,7 @@
 #pragma once
 
-#include "libcalib_common.h"
-#include "libcalib_quality.h"
+#include "libcalib/common.h"
+#include "libcalib/quality.h"
 
 namespace libcalib
 {

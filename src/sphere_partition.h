@@ -1,7 +1,7 @@
 #pragma once
 
-#include "libcalib_common.h"
-#include "libcalib_magcal.h"
+#include "libcalib/common.h"
+#include "libcalib/magcal.h"
 
 #include <algorithm>
 #include <math.h>

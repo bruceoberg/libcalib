@@ -32,7 +32,7 @@
 // Haha - This file has been edited!  Please do not blame or pester NXP (formerly
 //        Freescale) about the "almost inevitable" issues!
 
-#include "libcalib.h"
+#include "libcalib/calibrator.h"
 #include "matrix.h"
 #include "sphere_partition.h"
 
