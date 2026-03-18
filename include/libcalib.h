@@ -24,7 +24,7 @@ public:
 	void Reset();
 	void AddSample(const SSample & samp);
 
-	MagCalibrator m_magcal;
+	CSphereFitter m_sphitter;
 	SQuat m_current_orientation;
 
 private:

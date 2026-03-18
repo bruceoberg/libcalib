@@ -44,7 +44,7 @@ namespace libcalib
 {
 
 // pigeonhole invariant: when the buffer is full, at least one region has >1 sample
-static_assert(MagCalibrator::s_cSampMax > REGION_Max);
+static_assert(CSphereFitter::s_cSampMax > REGION_Max);
 
 constexpr float DEFAULTB = 50.0F;				// default geomagnetic field (uT)
 constexpr int X = 0;							// vector components
@@ -61,7 +61,7 @@ constexpr float FITERRORAGINGSECS = 7200.0F;	// 2 hours: time for fit error to i
 
 // CSampleSet
 
-MagCalibrator::CSampleSet::CSampleSet()
+CSphereFitter::CSampleSet::CSampleSet()
 : m_aSamp()
 , m_cSamp(0)
 , m_mpRegionCSamp()
@@ -69,7 +69,7 @@ MagCalibrator::CSampleSet::CSampleSet()
 {
 }
 
-void MagCalibrator::CSampleSet::AddSample(MagCalibrator * pMagcal, const MagSample & samp)
+void CSphereFitter::CSampleSet::AddSample(CSphereFitter * pSphitter, const MagSample & samp)
 {
 	int iSampDest = -1;
 
@@ -82,7 +82,7 @@ void MagCalibrator::CSampleSet::AddSample(MagCalibrator * pMagcal, const MagSamp
 
 	if (iSampDest < 0)
 	{
-		iSampDest = pMagcal->ISampFieldOutlier(samp.m_region);
+		iSampDest = pSphitter->ISampFieldOutlier(samp.m_region);
 	}
 
 	// if still full, pick eldest from our most populated region.
@@ -116,7 +116,7 @@ void MagCalibrator::CSampleSet::AddSample(MagCalibrator * pMagcal, const MagSamp
 	++m_mpRegionCSamp[samp.m_region];
 }
 
-REGION MagCalibrator::CSampleSet::RegionMostPopulated() const
+REGION CSphereFitter::CSampleSet::RegionMostPopulated() const
 {
 	REGION regionBest = REGION_Nil;
 	int cSampBest = 1; // must be strictly greater than 1
@@ -133,7 +133,7 @@ REGION MagCalibrator::CSampleSet::RegionMostPopulated() const
 	return regionBest;
 }
 
-int MagCalibrator::CSampleSet::ISampOldestInRegion(REGION region) const
+int CSphereFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 {
 	int iSampOldest = -1;
 	MagSample::ID idOldest = ~MagSample::ID(0); // max value
@@ -151,7 +151,7 @@ int MagCalibrator::CSampleSet::ISampOldestInRegion(REGION region) const
 }
 
 
-MagCalibrator::MagCalibrator()
+CSphereFitter::CSphereFitter()
 	: m_cal_V()
 	, m_cal_invW()
 	, m_cal_B()
@@ -182,7 +182,7 @@ MagCalibrator::MagCalibrator()
 	m_cal_B = 50.0f;
 }
 
-int MagCalibrator::ISampFieldOutlier(REGION regionIncoming)
+int CSphereFitter::ISampFieldOutlier(REGION regionIncoming)
 {
 	// When enough data is collected (gaps error is low), assume we
 	// have a pretty good coverage and the field stregth is known.
@@ -238,7 +238,7 @@ int MagCalibrator::ISampFieldOutlier(REGION regionIncoming)
 }
 
 
-void MagCalibrator::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
+void CSphereFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 {
 	MagSample samp(pntRaw, m_cal_V, m_cal_invW);
 
@@ -257,7 +257,7 @@ void MagCalibrator::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 }
 
 // run the magnetic calibration
-bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
+bool CSphereFitter::FHasNewCalibration(float * pSMagChange)
 {
 	int i, j;			// loop counters
 	SOLVER solver = SOLVER_Nil;		// magnetic solver used
@@ -341,7 +341,7 @@ bool MagCalibrator::FHasNewCalibration(float * pSMagChange)
 
 
 // 4 element calibration using 4x4 matrix inverse
-void MagCalibrator::UpdateCalibration4INV()
+void CSphereFitter::UpdateCalibration4INV()
 {
 	float fBp2;					// fBp[X]^2+fBp[Y]^2+fBp[Z]^2
 	float fSumBp4;				// sum of fBp2
@@ -485,7 +485,7 @@ void MagCalibrator::UpdateCalibration4INV()
 
 
 // 7 element calibration using direct eigen-decomposition
-void MagCalibrator::UpdateCalibration7EIG()
+void CSphereFitter::UpdateCalibration7EIG()
 {
 	float det;					// matrix determinant
 	float fscaling;				// set to FUTPERCOUNT * FMATRIXSCALING
@@ -600,7 +600,7 @@ void MagCalibrator::UpdateCalibration7EIG()
 
 
 // 10 element calibration using direct eigen-decomposition
-void MagCalibrator::UpdateCalibration10EIG()
+void CSphereFitter::UpdateCalibration10EIG()
 {
 	float det;					// matrix determinant
 	float fscaling;				// set to FUTPERCOUNT * FMATRIXSCALING
@@ -767,7 +767,7 @@ void MagCalibrator::UpdateCalibration10EIG()
 	}
 }
 
-void MagCalibrator::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+void CSphereFitter::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
 {
 	memset(m_mpRegionCSamp, 0, sizeof(m_mpRegionCSamp));
 

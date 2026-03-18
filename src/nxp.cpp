@@ -13,7 +13,7 @@ void CNxp::AddSample(
 	const SPoint &pntAccel,
 	const SPoint &pntGyro,
 	const SPoint &pntMag,
-	const MagCalibrator &magcal)
+	const CSphereFitter &sphitter)
 {
 	m_sampler.AddSample(pntAccel, pntGyro, pntMag);
 
@@ -23,8 +23,8 @@ void CNxp::AddSample(
 			m_sampler.m_accel,
 			m_sampler.m_gyro,
 			m_sampler.m_mag,
-			magcal.FHasSolution(),
-			magcal.m_cal_B);
+			sphitter.FHasSolution(),
+			sphitter.m_cal_B);
 	}
 }
 

@@ -17,7 +17,7 @@
 namespace libcalib
 {
 
-class MagCalibrator;  // libcalib_magcal.h
+class CSphereFitter;  // libcalib_magcal.h
 
 class CFusion : public IAhrs  // tag: fuse
 {
@@ -29,7 +29,7 @@ public:
 					const SPoint & pntAccel,
 					const SPoint & pntGyro,
 					const SPoint & pntMag,
-					const MagCalibrator & magcal) override;
+					const CSphereFitter & sphitter) override;
 	void		Read(SQuat * pQuat) const override;
 
 private:

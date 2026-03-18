@@ -7,7 +7,7 @@ namespace libcalib
 
 void Calibrator::Reset()
 {
-	m_magcal.Reset();
+	m_sphitter.Reset();
 
 	m_current_orientation = SQuat();
 
@@ -20,11 +20,11 @@ void Calibrator::AddSample(const SSample & samp)
 {
 	SPoint pntMagCal;
 
-	m_magcal.AddSample(samp.m_pntMag, &pntMagCal);
+	m_sphitter.AddSample(samp.m_pntMag, &pntMagCal);
 
 	float sMagChange = 0.0f;
 
-	if (m_magcal.FHasNewCalibration(&sMagChange)) {
+	if (m_sphitter.FHasNewCalibration(&sMagChange)) {
 		//printf("magdiff = %.2f\n", magdiff);
 		if (sMagChange > 0.8f) {
 			m_ahrs.Reset();
@@ -39,7 +39,7 @@ void Calibrator::AddSample(const SSample & samp)
 		}
 	}
 
-	m_ahrs.AddSample(samp.m_pntAccel, samp.m_pntGyro, pntMagCal, m_magcal);
+	m_ahrs.AddSample(samp.m_pntAccel, samp.m_pntGyro, pntMagCal, m_sphitter);
 	m_ahrs.Read(&m_current_orientation);
 }
 

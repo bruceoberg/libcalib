@@ -42,7 +42,7 @@ struct MagSample
 
 // magnetic calibration & buffer structure
 
-struct MagCalibrator
+struct CSphereFitter
 {
 	static const int s_cSampMax = 650; // Freescale's lib needs at least 392
 
@@ -64,7 +64,7 @@ struct MagCalibrator
 	public:
 				CSampleSet();
 
-		void	AddSample(MagCalibrator * pMagcal, const MagSample & samp);
+		void	AddSample(CSphereFitter * pSphitter, const MagSample & samp);
 		void	Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]);
 
 		REGION	RegionMostPopulated() const;
@@ -87,10 +87,10 @@ struct MagCalibrator
 				m_idNext;
 	};
 
-			MagCalibrator();
+			CSphereFitter();
 
 	void	Reset()
-				{ *this = MagCalibrator(); }
+				{ *this = CSphereFitter(); }
 	void	AddSample(const SPoint & BpFast, SPoint * pBcFast);
 	bool	FHasNewCalibration(float * pSMadDiff);
 	bool	FHasSolution() const

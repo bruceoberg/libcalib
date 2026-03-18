@@ -10,7 +10,7 @@
 namespace libcalib
 {
 
-class MagCalibrator;  // libcalib_magcal.h
+class CSphereFitter;  // libcalib_magcal.h
 
 class IAhrs  // tag: ahrs
 {
@@ -24,13 +24,13 @@ public:
     // Feed one raw sensor sample.  Called once per sensor interrupt at SENSORFS.
     // Implementations that oversample (Nxp, Mahony) accumulate internally and
     // run their filter update every SSampler::s_cSample calls; Fusion runs every call.
-    // magcal — current magnetometer calibration state; implementations query
-    //          FHasSolution() and m_cal_B directly rather than receiving extracted scalars.
+    // sphitter — current magnetometer calibration state; implementations query
+    //            FHasSolution() and m_cal_B directly rather than receiving extracted scalars.
     virtual void    AddSample(
                         const SPoint & pntAccel,
                         const SPoint & pntGyro,
                         const SPoint & pntMag,
-                        const MagCalibrator & magcal) = 0;
+                        const CSphereFitter & sphitter) = 0;
 
     // Copy the most recently computed orientation into *pQ.
     // Safe to call after every AddSample; oversampling implementations return

@@ -40,7 +40,7 @@ void CFusion::AddSample(
     const SPoint & pntAccel,
     const SPoint & pntGyro,
     const SPoint & pntMag,
-    const MagCalibrator & magcal)
+    const CSphereFitter & sphitter)
 {
     // Fusion takes deg/s directly — no conversion needed for gyro.
     // Accelerometer in g, magnetometer in uT (or any consistent unit).
@@ -48,7 +48,7 @@ void CFusion::AddSample(
     const FusionVector gyro  = { pntGyro.x,  pntGyro.y,  pntGyro.z  };
     const FusionVector accel = { pntAccel.x, pntAccel.y, pntAccel.z };
 
-    if (magcal.FHasSolution())
+    if (sphitter.FHasSolution())
     {
         const FusionVector mag = { pntMag.x, pntMag.y, pntMag.z };
         FusionAhrsUpdate(&m_fusionahrs, gyro, accel, mag, k_gSamplePeriod);
@@ -78,7 +78,7 @@ void CFusion::Read(SQuat * pQuat) const
 CFusion::CFusion()                                              { __builtin_trap(); }
 void CFusion::Reset()                                           { __builtin_trap(); }
 void CFusion::AddSample(const SPoint &, const SPoint &,
-                        const SPoint &, const MagCalibrator &) { __builtin_trap(); }
+                        const SPoint &, const CSphereFitter &) { __builtin_trap(); }
 void CFusion::Read(SQuat *) const                              { __builtin_trap(); }
 
 #endif // LIBCALIB_HAS_FUSION

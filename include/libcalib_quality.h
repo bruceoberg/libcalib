@@ -5,7 +5,7 @@
 namespace libcalib
 {
 
-class MagCalibrator;
+class CSphereFitter;
 
 struct MagQuality
 {
@@ -13,7 +13,7 @@ struct MagQuality
 	
 	void Reset()
 			{ m_isValid = false; }
-	void Ensure(const MagCalibrator & magcal);
+	void Ensure(const CSphereFitter & sphitter);
 
 	bool AreErrorsOk() const;
 	bool AreErrorsBad() const;
@@ -30,9 +30,9 @@ struct MagQuality
 	static constexpr float s_errMax = 100.0f;
 
 private:
-	float	ErrGaps(const MagCalibrator & magcal);
-	float	ErrVariance(const MagCalibrator & magcal);
-	float	ErrWobble(const MagCalibrator & magcal);
+	float	ErrGaps(const CSphereFitter & sphitter);
+	float	ErrVariance(const CSphereFitter & sphitter);
+	float	ErrWobble(const CSphereFitter & sphitter);
 
 	bool	m_isValid;
 

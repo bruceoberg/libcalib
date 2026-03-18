@@ -19,7 +19,7 @@ public:
 				const SPoint & pntAccel,
 				const SPoint & pntGyro,
 				const SPoint & pntMag,
-				const MagCalibrator & magcal) override;
+				const CSphereFitter & sphitter) override;
     void    Read(SQuat * pQuat) const override
 			{
 				*pQuat = m_qPl;
