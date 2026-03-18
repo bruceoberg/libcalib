@@ -34,7 +34,7 @@
 
 #include "libcalib/calibrator.h"
 #include "matrix.h"
-#include "sphere_partition.h"
+#include "sphere.h"
 
 #include <float.h>
 #include <math.h>
@@ -796,7 +796,7 @@ void MagSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]
 
 	if (m_field > 0.0f)
 	{
-		m_region = static_cast<REGION>(g_sphere_partition.RegionFromXyz(
+		m_region = static_cast<REGION>(Sphere::RegionFromXyz(
 			m_pntCal.x / m_field,
 			m_pntCal.y / m_field,
 			m_pntCal.z / m_field));

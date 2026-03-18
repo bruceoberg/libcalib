@@ -1,87 +1,11 @@
 #include "libcalib/calibrator.h"
-#include "sphere_partition.h"
+#include "sphere.h"
 
 #include <math.h>
 #include <string.h>
 
 namespace libcalib
 {
-
-SpherePartition::SpherePartition()
-{
-	static_assert(s_aCollar[0].m_cRegion == 1);
-
-	m_mpRegionAnchor[0].x = 0.0f;
-	m_mpRegionAnchor[0].y = 0.0f;
-	m_mpRegionAnchor[0].z = 1.0f;
-
-	SPoint * pAnchor = &m_mpRegionAnchor[1];
-
-	// NOTE: skipping first and last collars (the poles);
-
-	for (int iCollar = 1; iCollar < s_cCollar - 1; ++iCollar)
-	{
-		auto & collar = s_aCollar[iCollar];
-		float latMiddle = (collar.m_latMin + collar.m_latMax) / 2.0f;
-		float radiusMiddle = cosf(latMiddle);
-		float zMiddle = sinf(latMiddle);
-		float dLongitude = (M_PI * 2.0 / float(collar.m_cRegion));
-
-		for (int subregion = 0; subregion < collar.m_cRegion; ++subregion)
-		{
-			float longitude = (float(subregion) + 0.5f) * dLongitude;
-
-			// negation here is to flip regions into a winding order that matches
-			// the subregion from longitude calculation in RegionFromXyz().
-
-			pAnchor->x = -cosf(longitude) * radiusMiddle;
-			pAnchor->y = -sinf(longitude) * radiusMiddle;
-			pAnchor->z = zMiddle;
-
-			++pAnchor;
-		}
-	}
-
-	static_assert(s_aCollar[s_cCollar - 1].m_cRegion == 1);
-
-	m_mpRegionAnchor[REGION_Max - 1].x = 0.0f;
-	m_mpRegionAnchor[REGION_Max - 1].y = 0.0f;
-	m_mpRegionAnchor[REGION_Max - 1].z = -1.0f;
-
-	//for (int region = 0; region < REGION_Max; ++region)
-	//{
-	//	const auto & anchor = m_mpRegionAnchor[region];
-	//	assert(region == RegionFromXyz(anchor.x, anchor.y, anchor.z));
-	//}
-}
-
-int SpherePartition::RegionFromXyz(float x, float y, float z)
-{
-	float latitude = (M_PI / 2.0) - atan2f(sqrtf(x * x + y * y), z);
-
-	int regionCur = 0;
-
-	for (auto collar : s_aCollar)
-	{
-		if (latitude >= collar.m_latMin)
-		{
-			if (collar.m_cRegion <= 1)
-				return regionCur;
-
-			float longitude = atan2f(y, x) + M_PI;
-			int subregion = floorf(float(collar.m_cRegion) * longitude / (M_PI * 2.0));
-			subregion = std::clamp(subregion, 0, collar.m_cRegion - 1);
-
-			return regionCur + subregion;
-		}
-
-		regionCur += collar.m_cRegion;
-	}
-
-	return 0;
-}
-
-SpherePartition g_sphere_partition;
 
 MagQuality::MagQuality()
 : m_errGaps(s_errMax)
@@ -218,13 +142,11 @@ float MagQuality::ErrWobble(const CSphereFitter & sphitter)
 			float y = mpRegionSum[region].y / float(cSamp);
 			float z = mpRegionSum[region].z / float(cSamp);
 
-			float xi = g_sphere_partition.m_mpRegionAnchor[region].x * radius;
-			float yi = g_sphere_partition.m_mpRegionAnchor[region].y * radius;
-			float zi = g_sphere_partition.m_mpRegionAnchor[region].z * radius;
+			const SPoint & pntAnchor = Sphere::PntAnchorFromRegion(region);
 
-			xoff += x - xi;
-			yoff += y - yi;
-			zoff += z - zi;
+			xoff += x - pntAnchor.x * radius;
+			yoff += y - pntAnchor.y * radius;
+			zoff += z - pntAnchor.z * radius;
 
 			cRegionHit++;
 		}
