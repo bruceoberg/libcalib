@@ -7,7 +7,10 @@
 namespace libcalib
 {
 
-Sphere::SQuality::SQuality()
+namespace Sphere
+{
+
+SQuality::SQuality()
 : m_errGaps(s_errMax)
 , m_errVariance(s_errMax)
 , m_errWobble(s_errMax)
@@ -16,7 +19,7 @@ Sphere::SQuality::SQuality()
 {
 }
 
-void Sphere::SQuality::Ensure(const Sphere::CFitter & fitter)
+void SQuality::Ensure(const CFitter & fitter)
 {
 	if (m_isValid)
 		return;
@@ -29,7 +32,7 @@ void Sphere::SQuality::Ensure(const Sphere::CFitter & fitter)
 	m_isValid = true;
 }
 
-bool Sphere::SQuality::AreErrorsOk() const
+bool SQuality::AreErrorsOk() const
 {
 	if (m_errGaps >= s_errGapsOkMin)
 		return false;
@@ -43,7 +46,7 @@ bool Sphere::SQuality::AreErrorsOk() const
 	return true;
 }
 
-bool Sphere::SQuality::AreErrorsBad() const
+bool SQuality::AreErrorsBad() const
 {
 	if (m_errGaps <= s_errGapsBadMax)
 		return false;
@@ -59,12 +62,12 @@ bool Sphere::SQuality::AreErrorsBad() const
 
 // How many surface gaps
 
-float Sphere::SQuality::ErrGaps(const Sphere::CFitter & fitter)
+float SQuality::ErrGaps(const CFitter & fitter)
 {
 	float error = 0.0f;
 
-	for (int region = 0; region < Sphere::REGION_Max; region++) {
-		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<Sphere::REGION>(region));
+	for (int region = 0; region < REGION_Max; region++) {
+		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
 
 		if (cSamp == 0) {
 			error += 1.0f;
@@ -80,7 +83,7 @@ float Sphere::SQuality::ErrGaps(const Sphere::CFitter & fitter)
 
 // Variance in magnitude
 
-float Sphere::SQuality::ErrVariance(const Sphere::CFitter & fitter)
+float SQuality::ErrVariance(const CFitter & fitter)
 {
 	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;
@@ -105,7 +108,7 @@ float Sphere::SQuality::ErrVariance(const Sphere::CFitter & fitter)
 
 // Offset of piecewise average data from ideal sphere surface
 
-float Sphere::SQuality::ErrWobble(const Sphere::CFitter & fitter)
+float SQuality::ErrWobble(const CFitter & fitter)
 {
 	if (fitter.m_samps.CSamp() == 0)
 		return s_errMax;
@@ -119,10 +122,10 @@ float Sphere::SQuality::ErrWobble(const Sphere::CFitter & fitter)
 
 	// compute per-region sums locally
 
-	SPoint mpRegionSum[Sphere::REGION_Max] = {};
+	SPoint mpRegionSum[REGION_Max] = {};
 	for (int i = 0; i < fitter.m_samps.CSamp(); i++)
 	{
-		const Sphere::MagSample & samp = fitter.m_samps.Samp(i);
+		const MagSample & samp = fitter.m_samps.Samp(i);
 		mpRegionSum[samp.m_region].x += samp.m_pntCal.x;
 		mpRegionSum[samp.m_region].y += samp.m_pntCal.y;
 		mpRegionSum[samp.m_region].z += samp.m_pntCal.z;
@@ -133,16 +136,16 @@ float Sphere::SQuality::ErrWobble(const Sphere::CFitter & fitter)
 	float zoff = 0.0f;
 	int cRegionHit = 0;
 
-	for (int region = 0; region < Sphere::REGION_Max; region++)
+	for (int region = 0; region < REGION_Max; region++)
 	{
-		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<Sphere::REGION>(region));
+		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
 		if (cSamp > 0)
 		{
 			float x = mpRegionSum[region].x / float(cSamp);
 			float y = mpRegionSum[region].y / float(cSamp);
 			float z = mpRegionSum[region].z / float(cSamp);
 
-			const SPoint & pntAnchor = Sphere::PntAnchorFromRegion(region);
+			const SPoint & pntAnchor = PntAnchorFromRegion(region);
 
 			xoff += x - pntAnchor.x * radius;
 			yoff += y - pntAnchor.y * radius;
@@ -161,5 +164,7 @@ float Sphere::SQuality::ErrWobble(const Sphere::CFitter & fitter)
 
 	return sqrtf(xoff * xoff + yoff * yoff + zoff * zoff) / radius * s_errMax;
 }
+
+} // namespace Sphere
 
 } // namespace libcalib
