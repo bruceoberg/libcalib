@@ -107,10 +107,7 @@ struct SCal // tag = cal
 {
 			SCal()
 			: m_vecV(0.0f, 80.0f, 0.0f),	// Initial guess from MotionCal code
-			  m_matWInv(
-				SPoint(1.0f, 0.0f, 0.0f),
-				SPoint(0.0f, 1.0f, 0.0f),
-				SPoint(0.0f, 0.0f, 1.0f)),
+			  m_matWInv(),
 			  m_sB(s_sBDefault)
 				{ ; }
 
