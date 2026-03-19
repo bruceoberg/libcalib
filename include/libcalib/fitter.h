@@ -42,18 +42,15 @@ struct CFitter
 
 				SSample(
 					const SPoint & pntRaw,
-					const float (&cal_V)[3],
-					const float (&cal_invW)[3][3])
+					const Mag::SCal & cal)
 				: m_pntRaw(pntRaw),
 				  m_pntCal(),
 				  m_field(),
 				  m_region(REGION_Nil),
 				  m_id()
-					{ Calibrate(cal_V, cal_invW); }
+					{ Calibrate(cal); }
 
-		void	Calibrate(
-					const float (&cal_V)[3],
-					const float (&cal_invW)[3][3]);
+		void	Calibrate(const Mag::SCal & cal);
 
 		SPoint	m_pntRaw;	// raw sample
 		SPoint	m_pntCal;	// calibrated sample
@@ -70,7 +67,7 @@ struct CFitter
 				CSampleSet();
 
 		void	AddSample(CFitter * pFitter, const SSample & samp);
-		void	Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3]);
+		void	Recalibrate(const Mag::SCal & cal);
 
 		REGION	RegionMostPopulated() const;
 		int		ISampOldestInRegion(REGION region) const;
@@ -118,13 +115,12 @@ struct CFitter
 	float	ErrFit() const
 				{ return m_quality.m_errFit; }
 
-	float	m_cal_V[3];					// current hard iron offset x, y, z, (uT)
-	float	m_cal_invW[3][3];				// current inverse soft iron matrix
-	float	m_cal_B;						// current geomagnetic field magnitude (uT)
-	float	m_errFit;						// current fit error %
-	SOLVER	m_solver;					// currently used solver
+	Mag::SCal
+			m_cal;				// current calibration
+	float	m_errFit;			// current fit error %
+	SOLVER	m_solver;			// currently used solver
 	CSampleSet
-			m_samps;				// sample buffer with region bookkeeping
+			m_samps;			// sample buffer with region bookkeeping
 
 private:
 	friend class ::libcalib::Calibrator;
@@ -135,20 +131,20 @@ private:
 	void	UpdateCalibration7EIG();
 	void	UpdateCalibration10EIG();
 
-	float	m_errorFitAged;				// current fit error % (grows automatically with age)
-	float	m_calNext_V[3];				// trial value of hard iron offset z, y, z (uT)
-	float	m_calNext_invW[3][3];			// trial inverse soft iron matrix size
-	float	m_calNext_B;					// trial value of geomagnetic field magnitude in uT
-	float	m_errorFitNext;				// trial value of fit error %
-	float	m_A[3][3];					// ellipsoid matrix A
-	float	m_invA[3][3];					// inverse of ellipsoid matrix A
-	float	m_matA[10][10];				// scratch 10x10 matrix used by calibration algorithms
-	float	m_matB[10][10];				// scratch 10x10 matrix used by calibration algorithms
-	float	m_vecA[10];					// scratch 10x1 vector used by calibration algorithms
-	float	m_vecB[4];					// scratch 4x1 vector used by calibration algorithms
+	Mag::SCal
+			m_calNext;				// trial calibration
+	float	m_calNext_B;			// trial value of geomagnetic field magnitude in uT
+	float	m_errFitNext;			// trial value of fit error %
+	float	m_errFitNextAged;		// current fit error % (grows automatically with age)
+	float	m_A[3][3];				// ellipsoid matrix A
+	float	m_invA[3][3];			// inverse of ellipsoid matrix A
+	float	m_matA[10][10];			// scratch 10x10 matrix used by calibration algorithms
+	float	m_matB[10][10];			// scratch 10x10 matrix used by calibration algorithms
+	float	m_vecA[10];				// scratch 10x1 vector used by calibration algorithms
+	float	m_vecB[4];				// scratch 4x1 vector used by calibration algorithms
 
-	int		m_discard_count;				// ISampFieldOutlier() counter for choosing field strength discards
-	int		m_new_wait_count;				// number of times FHasNewCalibration() had been called without doing any work
+	int		m_discard_count;		// ISampFieldOutlier() counter for choosing field strength discards
+	int		m_new_wait_count;		// number of times FHasNewCalibration() had been called without doing any work
 
 	SQuality
 			m_quality;

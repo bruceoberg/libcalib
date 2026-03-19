@@ -54,6 +54,7 @@ struct SPoint
 	const float & operator[](int i) const
 		{ return (&x)[i]; }
 };
+static_assert(sizeof(SPoint) == 3 * sizeof(float));
 
 struct SQuat
 {
@@ -71,11 +72,54 @@ struct SQuat
 	float q3; // z
 };
 
+struct SMatrix3
+{
+	SMatrix3(
+		SPoint i_vecX = SPoint(1.0f, 0.0f, 0.0f),
+		SPoint i_vecY = SPoint(0.0f, 1.0f, 0.0f),
+		SPoint i_vecZ = SPoint(0.0f, 0.0f, 1.0f))
+	: vecX(i_vecX), vecY(i_vecY), vecZ(i_vecZ)
+		{ ; }
+
+	SPoint vecX;
+	SPoint vecY;
+	SPoint vecZ;
+
+	SPoint & operator[](int i)
+		{ return (&vecX)[i]; }
+	const SPoint & operator[](int i) const
+		{ return (&vecX)[i]; }
+};
+static_assert(sizeof(SMatrix3) == 3 * sizeof(SPoint));
+
 struct SSample	// tag = samp
 {
 	SPoint m_pntAccel;	// accelerometer (g)
 	SPoint m_pntGyro;	// gyroscope (deg/s)
 	SPoint m_pntMag;	// magnetometer (uT)
 };
+
+namespace Mag
+{
+	constexpr float s_sBDefault = 50.0f;
+
+struct SCal // tag = cal
+{
+			SCal()
+			: m_vecV(0.0f, 80.0f, 0.0f),	// Initial guess from MotionCal code
+			  m_matWInv(
+				SPoint(1.0f, 0.0f, 0.0f),
+				SPoint(0.0f, 1.0f, 0.0f),
+				SPoint(0.0f, 0.0f, 1.0f)),
+			  m_sB(s_sBDefault)
+				{ ; }
+
+	SPoint	m_vecV;		// hard iron offset x, y, z, (uT)
+	SMatrix3
+			m_matWInv;	// inverse soft iron matrix
+	float	m_sB;		// geomagnetic field magnitude (uT)
+};
+
+}
 
 } // namespace libcalib

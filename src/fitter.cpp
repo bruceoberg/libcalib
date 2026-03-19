@@ -15,7 +15,6 @@ namespace Sphere
 // pigeonhole invariant: when the buffer is full, at least one region has >1 sample
 static_assert(CFitter::s_cSampMax > REGION_Max);
 
-constexpr float DEFAULTB = 50.0F;				// default geomagnetic field (uT)
 constexpr int X = 0;							// vector components
 constexpr int Y = 1;
 constexpr int Z = 2;
@@ -121,18 +120,14 @@ int CFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 
 
 CFitter::CFitter()
-	: m_cal_V()
-	, m_cal_invW()
-	, m_cal_B()
+	: m_cal()
 	, m_errFit(SQuality::s_errMax)
 	, m_solver(SOLVER_Nil)
 	, m_samps()
 	, m_quality()
-	, m_errorFitAged(SQuality::s_errMax)
-	, m_calNext_V()
-	, m_calNext_invW()
-	, m_calNext_B()
-	, m_errorFitNext(SQuality::s_errMax)
+	, m_errFitNextAged(SQuality::s_errMax)
+	, m_calNext()
+	, m_errFitNext(SQuality::s_errMax)
 	, m_A()
 	, m_invA()
 	, m_matA()
@@ -142,13 +137,6 @@ CFitter::CFitter()
 	, m_discard_count(0)
 	, m_new_wait_count(0)
 {
-	m_cal_V[2] = 80.0f;  // initial guess
-	m_cal_invW[0][0] = 1.0f;
-	m_cal_invW[1][1] = 1.0f;
-	m_cal_invW[2][2] = 1.0f;
-	m_errFit = 100.0f;
-	m_errorFitAged = 100.0f;
-	m_cal_B = 50.0f;
 }
 
 int CFitter::ISampFieldOutlier(REGION regionIncoming)
@@ -173,7 +161,7 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 			
 			for (int iSamp = 0; iSamp < m_samps.CSamp(); iSamp++)
 			{
-				float dUtB = fabsf(m_samps.Samp(iSamp).m_field - m_cal_B);
+				float dUtB = fabsf(m_samps.Samp(iSamp).m_field - m_cal.m_sB);
 				
 				if (dUtB > dUtBOutlier)
 				{
@@ -209,7 +197,7 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 
 void CFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 {
-	SSample samp(pntRaw, m_cal_V, m_cal_invW);
+	SSample samp(pntRaw, m_cal);
 
 	if (pPntCal)
 	{
@@ -276,18 +264,18 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 
 	if (m_solver != SOLVER_Nil) {
 		// age the existing fit error to avoid one good calibration locking out future updates
-		m_errorFitAged *= 1.02f;
+		m_errFitNextAged *= 1.02f;
 	}
 
 	// is enough data collected
 	if (m_samps.CSamp() < MINMEASUREMENTS7CAL) {
 		solver = SOLVER_4Inv;
 		UpdateCalibration4INV(); // 4 element matrix inversion calibration
-		if (m_errorFitNext < 12.0f) m_errorFitNext = 12.0f;
+		if (m_errFitNext < 12.0f) m_errFitNext = 12.0f;
 	} else if (m_samps.CSamp() < MINMEASUREMENTS10CAL) {
 		solver = SOLVER_7Eig;
 		UpdateCalibration7EIG(); // 7 element eigenpair calibration
-		if (m_errorFitNext < 7.5f) m_errorFitNext = 7.5f;
+		if (m_errFitNext < 7.5f) m_errFitNext = 7.5f;
 	} else {
 		solver = SOLVER_10Eig;
 		UpdateCalibration10EIG(); // 10 element eigenpair calibration
@@ -300,39 +288,31 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 		//  2: the calibration fit is reduced or
 		//  3: an improved solver was used giving a good trial calibration (4% or under)
 		if ((m_solver == SOLVER_Nil) ||
-				(m_errorFitNext <= m_errorFitAged) ||
-				((solver > m_solver) && (m_errorFitNext <= 4.0F))) {
+				(m_errFitNext <= m_errFitNextAged) ||
+				((solver > m_solver) && (m_errFitNext <= 4.0F))) {
 			// accept the new calibration solution
 			//printf("new magnetic cal, B=%.2f uT\n", m_calNext_B);
 			m_solver = solver;
-			m_errFit = m_errorFitNext;
-			if (m_errorFitNext > 2.0f) {
-				m_errorFitAged = m_errorFitNext;
-			} else {
-				m_errorFitAged = 2.0f;
-			}
-			m_cal_B = m_calNext_B;
-			float cal_V_Diff[3];
+			m_errFit = m_errFitNext;
+			m_errFitNextAged = fmax(m_errFitNext, 2.0f);
+			float dVecV[3];
 			for (i = X; i <= Z; i++) {
-				cal_V_Diff[i] = m_calNext_V[i] - m_cal_V[i];
-				m_cal_V[i] = m_calNext_V[i];
-				for (j = X; j <= Z; j++) {
-					m_cal_invW[i][j] = m_calNext_invW[i][j];
-				}
+				dVecV[i] = m_calNext.m_vecV[i] - m_cal.m_vecV[i];
 			}
+			m_cal = m_calNext;
 
 			if (pSMagChange)
 			{
-				const float & x = cal_V_Diff[0];
-				const float & y = cal_V_Diff[1];
-				const float & z = cal_V_Diff[2];
+				const float & x = dVecV[0];
+				const float & y = dVecV[1];
+				const float & z = dVecV[2];
 
 				*pSMagChange = sqrtf(x * x + y * y + z * z);
 			}
 
 			// re-apply calibration to all our samples and update our quality metrics
 
-			m_samps.Recalibrate(m_cal_V, m_cal_invW);
+			m_samps.Recalibrate(m_cal);
 
 			m_quality.Reset();
 			m_quality.Ensure(*this);
@@ -361,11 +341,11 @@ void CFitter::UpdateCalibration4INV()
 	int8_t iPivot[4];
 
 	// compute fscaling to reduce multiplications later
-	fscaling = 1.0F / DEFAULTB;
+	fscaling = 1.0F / Mag::s_sBDefault;
 
-	// the trial inverse soft iron matrix m_cal_invW always equals
+	// the trial inverse soft iron matrix m_cal.m_matWInv always equals
 	// the identity matrix for 4 element calibration
-	f3x3matrixAeqI(m_calNext_invW);
+	m_calNext.m_matWInv = SMatrix3();
 
 	// zero fSumBp4=Y^T.Y, m_vecB=X^T.Y (4x1) and on and above
 	// diagonal elements of m_matA=X^T*X (4x4)
@@ -465,25 +445,25 @@ void CFitter::UpdateCalibration4INV()
 
 	// compute the hard iron vector (in uT but offset and scaled by FMATRIXSCALING)
 	for (k = X; k <= Z; k++) {
-		m_calNext_V[k] = 0.5F * m_vecA[k];
+		m_calNext.m_vecV[k] = 0.5F * m_vecA[k];
 	}
 
 	// compute the scaled geomagnetic field strength B (in uT but scaled by FMATRIXSCALING)
-	m_calNext_B = sqrtf(m_vecA[3] + m_calNext_V[X] * m_calNext_V[X] +
-			m_calNext_V[Y] * m_calNext_V[Y] + m_calNext_V[Z] * m_calNext_V[Z]);
+	m_calNext_B = sqrtf(m_vecA[3] + m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
+			m_calNext.m_vecV[Y] * m_calNext.m_vecV[Y] + m_calNext.m_vecV[Z] * m_calNext.m_vecV[Z]);
 
 	// calculate the trial fit error (percent) normalized to number of measurements
 	// and scaled geomagnetic field strength
-	m_errorFitNext = sqrtf(fE / float(m_samps.CSamp())) * 100.0F /
+	m_errFitNext = sqrtf(fE / float(m_samps.CSamp())) * 100.0F /
 			(2.0F * m_calNext_B * m_calNext_B);
 
 	// correct the hard iron estimate for FMATRIXSCALING and the offsets applied (result in uT)
 	for (k = X; k <= Z; k++) {
-		m_calNext_V[k] = m_calNext_V[k] * DEFAULTB + BpOffset[k];
+		m_calNext.m_vecV[k] = m_calNext.m_vecV[k] * Mag::s_sBDefault + BpOffset[k];
 	}
 
 	// correct the geomagnetic field strength B to correct scaling (result in uT)
-	m_calNext_B *= DEFAULTB;
+	m_calNext_B *= Mag::s_sBDefault;
 }
 
 
@@ -498,7 +478,7 @@ void CFitter::UpdateCalibration7EIG()
 	int i, j, k, m, n;			// loop counters
 
 	// compute fscaling to reduce multiplications later
-	fscaling = 1.0F / DEFAULTB;
+	fscaling = 1.0F / Mag::s_sBDefault;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
 	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
@@ -564,7 +544,7 @@ void CFitter::UpdateCalibration7EIG()
 	for (k = X; k <= Z; k++) {
 		m_A[k][k] = m_matB[k][j];
 		det *= m_A[k][k];
-		m_calNext_V[k] = -0.5F * m_matB[k + 3][j] / m_A[k][k];
+		m_calNext.m_vecV[k] = -0.5F * m_matB[k + 3][j] / m_A[k][k];
 	}
 
 	// negate A if it has negative determinant
@@ -578,11 +558,11 @@ void CFitter::UpdateCalibration7EIG()
 	// (counts times FMATRIXSCALING)
 	ftmp = -m_matB[6][j];
 	for (k = X; k <= Z; k++) {
-		ftmp += m_A[k][k] * m_calNext_V[k] * m_calNext_V[k];
+		ftmp += m_A[k][k] * m_calNext.m_vecV[k] * m_calNext.m_vecV[k];
 	}
 
 	// calculate the trial normalized fit error as a percentage
-	m_errorFitNext = 50.0F *
+	m_errFitNext = 50.0F *
 		sqrtf(fabs(m_vecA[j]) / float(m_samps.CSamp())) / fabs(ftmp);
 
 	// normalize the ellipsoid matrix A to unit determinant
@@ -590,14 +570,15 @@ void CFitter::UpdateCalibration7EIG()
 
 	// convert the geomagnetic field strength B into uT for normalized
 	// soft iron matrix A and normalize
-	m_calNext_B = sqrtf(fabs(ftmp)) * DEFAULTB * powf(det, -(ONESIXTH));
+	m_calNext_B = sqrtf(fabs(ftmp)) * Mag::s_sBDefault * powf(det, -(ONESIXTH));
 
-	// compute trial m_cal_invW from the square root of A also with normalized
+	// compute trial m_cal.m_matWInv from the square root of A also with normalized
 	// determinant and hard iron offset in uT
-	f3x3matrixAeqI(m_calNext_invW);
+	m_calNext.m_matWInv = SMatrix3();
+
 	for (k = X; k <= Z; k++) {
-		m_calNext_invW[k][k] = sqrtf(fabs(m_A[k][k]));
-		m_calNext_V[k] = m_calNext_V[k] * DEFAULTB + BpOffset[k];
+		m_calNext.m_matWInv[k][k] = sqrtf(fabs(m_A[k][k]));
+		m_calNext.m_vecV[k] = m_calNext.m_vecV[k] * Mag::s_sBDefault + BpOffset[k];
 	}
 }
 
@@ -613,7 +594,7 @@ void CFitter::UpdateCalibration10EIG()
 	int i, j, k, m, n;			// loop counters
 
 	// compute fscaling to reduce multiplications later
-	fscaling = 1.0F / DEFAULTB;
+	fscaling = 1.0F / Mag::s_sBDefault;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
 	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
@@ -701,42 +682,42 @@ void CFitter::UpdateCalibration10EIG()
 
 	// compute the trial hard iron vector in offset bit counts times FMATRIXSCALING
 	for (k = X; k <= Z; k++) {
-		m_calNext_V[k] = 0.0F;
+		m_calNext.m_vecV[k] = 0.0F;
 		for (m = X; m <= Z; m++) {
-			m_calNext_V[k] += m_invA[k][m] * m_matB[m + 6][j];
+			m_calNext.m_vecV[k] += m_invA[k][m] * m_matB[m + 6][j];
 		}
-		m_calNext_V[k] *= -0.5F;
+		m_calNext.m_vecV[k] *= -0.5F;
 	}
 
 	// compute the trial geomagnetic field strength B in bit counts times FMATRIXSCALING
-	m_calNext_B = sqrtf(fabs(m_A[0][0] * m_calNext_V[X] * m_calNext_V[X] +
-			2.0F * m_A[0][1] * m_calNext_V[X] * m_calNext_V[Y] +
-			2.0F * m_A[0][2] * m_calNext_V[X] * m_calNext_V[Z] +
-			m_A[1][1] * m_calNext_V[Y] * m_calNext_V[Y] +
-			2.0F * m_A[1][2] * m_calNext_V[Y] * m_calNext_V[Z] +
-			m_A[2][2] * m_calNext_V[Z] * m_calNext_V[Z] - m_matB[9][j]));
+	m_calNext_B = sqrtf(fabs(m_A[0][0] * m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
+			2.0F * m_A[0][1] * m_calNext.m_vecV[X] * m_calNext.m_vecV[Y] +
+			2.0F * m_A[0][2] * m_calNext.m_vecV[X] * m_calNext.m_vecV[Z] +
+			m_A[1][1] * m_calNext.m_vecV[Y] * m_calNext.m_vecV[Y] +
+			2.0F * m_A[1][2] * m_calNext.m_vecV[Y] * m_calNext.m_vecV[Z] +
+			m_A[2][2] * m_calNext.m_vecV[Z] * m_calNext.m_vecV[Z] - m_matB[9][j]));
 
 	// calculate the trial normalized fit error as a percentage
-	m_errorFitNext = 50.0F * sqrtf(
+	m_errFitNext = 50.0F * sqrtf(
 		fabs(m_vecA[j]) / float(m_samps.CSamp())) /
 		(m_calNext_B * m_calNext_B);
 
 	// correct for the measurement matrix offset and scaling and
 	// get the computed hard iron offset in uT
 	for (k = X; k <= Z; k++) {
-		m_calNext_V[k] = m_calNext_V[k] * DEFAULTB + BpOffset[k];
+		m_calNext.m_vecV[k] = m_calNext.m_vecV[k] * Mag::s_sBDefault + BpOffset[k];
 	}
 
 	// convert the trial geomagnetic field strength B into uT for
 	// un-normalized soft iron matrix A
-	m_calNext_B *= DEFAULTB;
+	m_calNext_B *= Mag::s_sBDefault;
 
 	// normalize the ellipsoid matrix A to unit determinant and
 	// correct B by root of this multiplicative factor
 	f3x3matrixAeqAxScalar(m_A, powf(det, -(ONETHIRD)));
 	m_calNext_B *= powf(det, -(ONESIXTH));
 
-	// compute trial m_cal_invW from the square root of fA (both with normalized determinant)
+	// compute m_calNext.m_matWInv from the square root of fA (both with normalized determinant)
 	// set m_vecA to the unsorted eigenvalues and m_matB to the unsorted eigenvectors of m_matA
 	// where m_matA holds the 3x3 matrix fA in its top left elements
 	for (i = 0; i < 3; i++) {
@@ -755,43 +736,43 @@ void CFitter::UpdateCalibration10EIG()
 		}
 	}
 
-	// set m_calNext_invW to eigenvectors * diag(sqrt(eigenvalues)) * eigenvectors^T =
+	// set m_calNext.m_matWInv to eigenvectors * diag(sqrt(eigenvalues)) * eigenvectors^T =
 	//   m_matB * m_matB^T = sqrt(fA) (guaranteed symmetric)
 	// loop over rows
 	for (i = 0; i < 3; i++) {
 		// loop over on and above diagonal columns
 		for (j = i; j < 3; j++) {
-			m_calNext_invW[i][j] = 0.0F;
+			m_calNext.m_matWInv[i][j] = 0.0F;
 			// accumulate the matrix product
 			for (k = 0; k < 3; k++) {
-				m_calNext_invW[i][j] += m_matB[i][k] * m_matB[j][k];
+				m_calNext.m_matWInv[i][j] += m_matB[i][k] * m_matB[j][k];
 			}
 			// copy to below diagonal element
-			m_calNext_invW[j][i] = m_calNext_invW[i][j];
+			m_calNext.m_matWInv[j][i] = m_calNext.m_matWInv[i][j];
 		}
 	}
 }
 
-void CFitter::CSampleSet::Recalibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+void CFitter::CSampleSet::Recalibrate(const Mag::SCal & cal)
 {
 	memset(m_mpRegionCSamp, 0, sizeof(m_mpRegionCSamp));
 
 	for (int iSamp = 0; iSamp < m_cSamp; ++iSamp)
 	{
-		m_aSamp[iSamp].Calibrate(cal_V, cal_invW);
+		m_aSamp[iSamp].Calibrate(cal);
 		m_mpRegionCSamp[m_aSamp[iSamp].m_region]++;
 	}
 }
 
-void CFitter::SSample::Calibrate(const float (&cal_V)[3], const float (&cal_invW)[3][3])
+void CFitter::SSample::Calibrate(const Mag::SCal & cal)
 {
-	float x = m_pntRaw.x - cal_V[0];
-	float y = m_pntRaw.y - cal_V[1];
-	float z = m_pntRaw.z - cal_V[2];
+	float x = m_pntRaw.x - cal.m_vecV[0];
+	float y = m_pntRaw.y - cal.m_vecV[1];
+	float z = m_pntRaw.z - cal.m_vecV[2];
 
-	m_pntCal.x = x * cal_invW[0][0] + y * cal_invW[0][1] + z * cal_invW[0][2];
-	m_pntCal.y = x * cal_invW[1][0] + y * cal_invW[1][1] + z * cal_invW[1][2];
-	m_pntCal.z = x * cal_invW[2][0] + y * cal_invW[2][1] + z * cal_invW[2][2];
+	m_pntCal.x = x * cal.m_matWInv[0][0] + y * cal.m_matWInv[0][1] + z * cal.m_matWInv[0][2];
+	m_pntCal.y = x * cal.m_matWInv[1][0] + y * cal.m_matWInv[1][1] + z * cal.m_matWInv[1][2];
+	m_pntCal.z = x * cal.m_matWInv[2][0] + y * cal.m_matWInv[2][1] + z * cal.m_matWInv[2][2];
 
 	x = m_pntCal.x;
 	y = m_pntCal.y;

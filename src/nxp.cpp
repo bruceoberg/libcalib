@@ -24,7 +24,7 @@ void CNxp::AddSample(
 			m_sampler.m_gyro,
 			m_sampler.m_mag,
 			fitter.FHasSolution(),
-			fitter.m_cal_B);
+			fitter.m_cal.m_sB);
 	}
 }
 
@@ -85,7 +85,6 @@ using namespace _9DOF_GBY_KALMAN;
 // maximum geomagnetic inclination angle tracked by Kalman filter
 constexpr float SINDELTAMAX = 0.9063078F;		// sin of max +ve geomagnetic inclination angle: here 65.0 deg
 constexpr float COSDELTAMAX = 0.4226183F;		// cos of max +ve geomagnetic inclination angle: here 65.0 deg
-constexpr float DEFAULTB = 50.0F;				// default geomagnetic field (uT)
 constexpr int X = 0;							// vector components
 constexpr int Y = 1;
 constexpr int Z = 2;
@@ -151,13 +150,13 @@ void CNxp::Reset()
 	// initialize the reference geomagnetic vector (uT, global frame)
 	m_DeltaPl = 0.0F;
 	// initialize NED geomagnetic vector to zero degrees inclination
-	m_mGl[X] = DEFAULTB;
+	m_mGl[X] = Mag::s_sBDefault;
 	m_mGl[Y] = 0.0F;
 	m_mGl[Z] = 0.0F;
 
 	// initialize noise variances for Qv and Qw matrix updates
 	m_QvAA = FQVA + FQWA + FDEGTORAD * FDEGTORAD * m_deltatsq * (FQWB + FQVG);
-	m_QvMM = FQVM + FQWD + FDEGTORAD * FDEGTORAD * m_deltatsq * DEFAULTB * DEFAULTB * (FQWB + FQVG);
+	m_QvMM = FQVM + FQWD + FDEGTORAD * FDEGTORAD * m_deltatsq * Mag::s_sBDefault * Mag::s_sBDefault * (FQWB + FQVG);
 
 	// initialize the 12x12 noise covariance matrix Qw of the a priori error vector xe-
 	// Qw is then recursively updated as P+ = (1 - K * C) * P- = (1 - K * C) * Qw  and Qw
@@ -301,7 +300,7 @@ void CNxp::Update(
 		m_gErrSeMi[i] = accel.GpFast[i] + m_aSeMi[i] - m_gSeGyMi[i];
 
 		// compute the a priori gyro estimate of the geomagnetic vector (uT, sensor frame)
-		// using an absolute rotation of the global frame geomagnetic vector (with magnitude m_cal_B uT)
+		// using an absolute rotation of the global frame geomagnetic vector (with magnitude m_cal.m_sB uT)
 		// NED y component of geomagnetic vector in global frame is zero
 		m_mSeGyMi[i] = m_RMi[i][X] * m_mGl[X] + m_RMi[i][Z] * m_mGl[Z];
 
