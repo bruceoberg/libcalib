@@ -11,7 +11,7 @@ namespace Sphere
 
 const SPoint & PntAnchorFromRegion(int region);
 
-int RegionFromXyz(float x, float y, float z);
+REGION RegionFromXyz(float x, float y, float z);
 
 } // namespace Sphere
 

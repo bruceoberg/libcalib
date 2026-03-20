@@ -18,14 +18,13 @@ static_assert(CFitter::s_cSampMax > REGION_Max);
 constexpr int X = 0;							// vector components
 constexpr int Y = 1;
 constexpr int Z = 2;
-constexpr float ONETHIRD = 0.33333333F;			// one third
-constexpr float ONESIXTH = 0.166666667F;		// one sixth
-constexpr int MINMEASUREMENTS4CAL = 40;			// minimum number of measurements for 4 element calibration
-constexpr int MINMEASUREMENTS7CAL = 100;		// minimum number of measurements for 7 element calibration
-constexpr int MINMEASUREMENTS10CAL = 150;		// minimum number of measurements for 10 element calibration
-constexpr float MINBFITUT = 22.0F;				// minimum geomagnetic field B (uT) for valid calibration
-constexpr float MAXBFITUT = 67.0F;				// maximum geomagnetic field B (uT) for valid calibration
-constexpr float FITERRORAGINGSECS = 7200.0F;	// 2 hours: time for fit error to increase (age) by e=2.718
+constexpr float s_sOneThird = 0.33333333F;		// one third
+constexpr float s_sOneSixth = 0.166666667F;		// one sixth
+constexpr int s_cSampMin4INV = 40;				// minimum number of measurements for 4 element calibration
+constexpr int s_cSampMin7EIG = 100;				// minimum number of measurements for 7 element calibration
+constexpr int s_cSampMin10EIG = 150;			// minimum number of measurements for 10 element calibration
+constexpr float s_sBFitMin = 22.0F;				// minimum geomagnetic field B (uT) for valid calibration
+constexpr float s_sBFitMax = 67.0F;				// maximum geomagnetic field B (uT) for valid calibration
 
 // CSampleSet
 
@@ -89,12 +88,14 @@ REGION CFitter::CSampleSet::RegionMostPopulated() const
 	REGION regionBest = REGION_Nil;
 	int cSampBest = 1; // must be strictly greater than 1
 
-	for (int region = 0; region < REGION_Max; region++)
+	for (int iRegion = REGION_Min; iRegion < REGION_Max; iRegion++)
 	{
+		REGION region = REGION(iRegion);
+
 		if (m_mpRegionCSamp[region] > cSampBest)
 		{
 			cSampBest = m_mpRegionCSamp[region];
-			regionBest = static_cast<REGION>(region);
+			regionBest = region;
 		}
 	}
 
@@ -252,15 +253,17 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 	// Haha - This file has been edited!  Please do not blame or pester NXP (formerly
 	//        Freescale) about the "almost inevitable" issues!
 
-	int i, j;			// loop counters
 	SOLVER solver = SOLVER_Nil;		// magnetic solver used
 
 	// only do the calibration occasionally
 
-	if (++m_new_wait_count < s_new_wait_count_max) return false;
+	if (++m_new_wait_count < s_new_wait_count_max)
+		return false;
+
 	m_new_wait_count = 0;
 
-	if (m_samps.CSamp() < MINMEASUREMENTS4CAL) return false;
+	if (m_samps.CSamp() < s_cSampMin4INV)
+		return false;
 
 	if (m_solver != SOLVER_Nil) {
 		// age the existing fit error to avoid one good calibration locking out future updates
@@ -268,37 +271,50 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 	}
 
 	// is enough data collected
-	if (m_samps.CSamp() < MINMEASUREMENTS7CAL) {
+	if (m_samps.CSamp() < s_cSampMin7EIG)
+	{
 		solver = SOLVER_4Inv;
 		UpdateCalibration4INV(); // 4 element matrix inversion calibration
-		if (m_errFitNext < 12.0f) m_errFitNext = 12.0f;
-	} else if (m_samps.CSamp() < MINMEASUREMENTS10CAL) {
+		m_errFitNext = fmax(m_errFitNext, 12.0f);
+	}
+	else if (m_samps.CSamp() < s_cSampMin10EIG)
+	{
 		solver = SOLVER_7Eig;
 		UpdateCalibration7EIG(); // 7 element eigenpair calibration
-		if (m_errFitNext < 7.5f) m_errFitNext = 7.5f;
-	} else {
+		m_errFitNext = fmax(m_errFitNext, 7.5f);
+	}
+	else
+	{
 		solver = SOLVER_10Eig;
 		UpdateCalibration10EIG(); // 10 element eigenpair calibration
 	}
 
 	// the trial geomagnetic field must be in range (earth is 22uT to 67uT)
-	if ((m_calNext_B >= MINBFITUT) && (m_calNext_B <= MAXBFITUT))	{
-		// always accept the calibration if
+
+	if ((m_calNext.m_sB >= s_sBFitMin) && (m_calNext.m_sB <= s_sBFitMax))
+	{
+		// always accept the calibration under any of these conditions:
 		//  1: no previous calibration exists
-		//  2: the calibration fit is reduced or
+		bool fNoSolver = (m_solver == SOLVER_Nil);
+		//  2: the calibration fit is reduced
+		bool fReducedFit = (m_errFitNext <= m_errFitNextAged);
 		//  3: an improved solver was used giving a good trial calibration (4% or under)
-		if ((m_solver == SOLVER_Nil) ||
-				(m_errFitNext <= m_errFitNextAged) ||
-				((solver > m_solver) && (m_errFitNext <= 4.0F))) {
+		bool fBetterSolverAndFit = ((solver > m_solver) && (m_errFitNext <= 4.0F));
+		
+		if (fNoSolver || fReducedFit || fBetterSolverAndFit)
+		{
 			// accept the new calibration solution
-			//printf("new magnetic cal, B=%.2f uT\n", m_calNext_B);
+			//printf("new magnetic cal, B=%.2f uT\n", m_calNext.m_sB);
 			m_solver = solver;
 			m_errFit = m_errFitNext;
 			m_errFitNextAged = fmax(m_errFitNext, 2.0f);
+			
 			float dVecV[3];
-			for (i = X; i <= Z; i++) {
+			for (int i = X; i <= Z; i++)
+			{
 				dVecV[i] = m_calNext.m_vecV[i] - m_cal.m_vecV[i];
 			}
+			
 			m_cal = m_calNext;
 
 			if (pSMagChange)
@@ -449,13 +465,13 @@ void CFitter::UpdateCalibration4INV()
 	}
 
 	// compute the scaled geomagnetic field strength B (in uT but scaled by FMATRIXSCALING)
-	m_calNext_B = sqrtf(m_vecA[3] + m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
+	m_calNext.m_sB = sqrtf(m_vecA[3] + m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
 			m_calNext.m_vecV[Y] * m_calNext.m_vecV[Y] + m_calNext.m_vecV[Z] * m_calNext.m_vecV[Z]);
 
 	// calculate the trial fit error (percent) normalized to number of measurements
 	// and scaled geomagnetic field strength
 	m_errFitNext = sqrtf(fE / float(m_samps.CSamp())) * 100.0F /
-			(2.0F * m_calNext_B * m_calNext_B);
+			(2.0F * m_calNext.m_sB * m_calNext.m_sB);
 
 	// correct the hard iron estimate for FMATRIXSCALING and the offsets applied (result in uT)
 	for (k = X; k <= Z; k++) {
@@ -463,7 +479,7 @@ void CFitter::UpdateCalibration4INV()
 	}
 
 	// correct the geomagnetic field strength B to correct scaling (result in uT)
-	m_calNext_B *= Mag::s_sBDefault;
+	m_calNext.m_sB *= Mag::s_sBDefault;
 }
 
 
@@ -566,11 +582,11 @@ void CFitter::UpdateCalibration7EIG()
 		sqrtf(fabs(m_vecA[j]) / float(m_samps.CSamp())) / fabs(ftmp);
 
 	// normalize the ellipsoid matrix A to unit determinant
-	f3x3matrixAeqAxScalar(m_A, powf(det, -(ONETHIRD)));
+	f3x3matrixAeqAxScalar(m_A, powf(det, -(s_sOneThird)));
 
 	// convert the geomagnetic field strength B into uT for normalized
 	// soft iron matrix A and normalize
-	m_calNext_B = sqrtf(fabs(ftmp)) * Mag::s_sBDefault * powf(det, -(ONESIXTH));
+	m_calNext.m_sB = sqrtf(fabs(ftmp)) * Mag::s_sBDefault * powf(det, -(s_sOneSixth));
 
 	// compute trial m_cal.m_matWInv from the square root of A also with normalized
 	// determinant and hard iron offset in uT
@@ -690,7 +706,7 @@ void CFitter::UpdateCalibration10EIG()
 	}
 
 	// compute the trial geomagnetic field strength B in bit counts times FMATRIXSCALING
-	m_calNext_B = sqrtf(fabs(m_A[0][0] * m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
+	m_calNext.m_sB = sqrtf(fabs(m_A[0][0] * m_calNext.m_vecV[X] * m_calNext.m_vecV[X] +
 			2.0F * m_A[0][1] * m_calNext.m_vecV[X] * m_calNext.m_vecV[Y] +
 			2.0F * m_A[0][2] * m_calNext.m_vecV[X] * m_calNext.m_vecV[Z] +
 			m_A[1][1] * m_calNext.m_vecV[Y] * m_calNext.m_vecV[Y] +
@@ -700,7 +716,7 @@ void CFitter::UpdateCalibration10EIG()
 	// calculate the trial normalized fit error as a percentage
 	m_errFitNext = 50.0F * sqrtf(
 		fabs(m_vecA[j]) / float(m_samps.CSamp())) /
-		(m_calNext_B * m_calNext_B);
+		(m_calNext.m_sB * m_calNext.m_sB);
 
 	// correct for the measurement matrix offset and scaling and
 	// get the computed hard iron offset in uT
@@ -710,12 +726,12 @@ void CFitter::UpdateCalibration10EIG()
 
 	// convert the trial geomagnetic field strength B into uT for
 	// un-normalized soft iron matrix A
-	m_calNext_B *= Mag::s_sBDefault;
+	m_calNext.m_sB *= Mag::s_sBDefault;
 
 	// normalize the ellipsoid matrix A to unit determinant and
 	// correct B by root of this multiplicative factor
-	f3x3matrixAeqAxScalar(m_A, powf(det, -(ONETHIRD)));
-	m_calNext_B *= powf(det, -(ONESIXTH));
+	f3x3matrixAeqAxScalar(m_A, powf(det, -(s_sOneThird)));
+	m_calNext.m_sB *= powf(det, -(s_sOneSixth));
 
 	// compute m_calNext.m_matWInv from the square root of fA (both with normalized determinant)
 	// set m_vecA to the unsorted eigenvalues and m_matB to the unsorted eigenvectors of m_matA
@@ -782,14 +798,14 @@ void CFitter::SSample::Calibrate(const Mag::SCal & cal)
 
 	if (m_field > 0.0f)
 	{
-		m_region = static_cast<REGION>(RegionFromXyz(
-			m_pntCal.x / m_field,
-			m_pntCal.y / m_field,
-			m_pntCal.z / m_field));
+		m_region = RegionFromXyz(
+					m_pntCal.x / m_field,
+					m_pntCal.y / m_field,
+					m_pntCal.z / m_field);
 	}
 	else
 	{
-		m_region = static_cast<REGION>(0);
+		m_region = REGION_Default;
 	}
 }
 

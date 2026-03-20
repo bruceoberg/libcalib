@@ -13,6 +13,8 @@ namespace Sphere
 
 enum REGION
 {
+	REGION_Min = 0,
+	REGION_Default = REGION_Min,
 	REGION_Max = 100,
 	REGION_Nil = -1,
 };
@@ -133,7 +135,6 @@ private:
 
 	Mag::SCal
 			m_calNext;				// trial calibration
-	float	m_calNext_B;			// trial value of geomagnetic field magnitude in uT
 	float	m_errFitNext;			// trial value of fit error %
 	float	m_errFitNextAged;		// current fit error % (grows automatically with age)
 	float	m_A[3][3];				// ellipsoid matrix A

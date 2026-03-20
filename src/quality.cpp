@@ -64,21 +64,23 @@ bool SQuality::AreErrorsBad() const
 
 float SQuality::ErrGaps(const CFitter & fitter)
 {
-	float error = 0.0f;
+	float err = 0.0f;
 
-	for (int region = 0; region < REGION_Max; region++) {
-		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
+	for (int iRegion = REGION_Min; iRegion < REGION_Max; iRegion++)
+	{
+		REGION region = REGION(iRegion);
+		int cSamp = fitter.m_samps.CSampFromRegion(region);
 
 		if (cSamp == 0) {
-			error += 1.0f;
+			err += 1.0f;
 		} else if (cSamp == 1) {
-			error += 0.2f;
+			err += 0.2f;
 		} else if (cSamp == 2) {
-			error += 0.01f;
+			err += 0.01f;
 		}
 	}
 
-	return error;
+	return err;
 }
 
 // Variance in magnitude
@@ -136,9 +138,10 @@ float SQuality::ErrWobble(const CFitter & fitter)
 	float zoff = 0.0f;
 	int cRegionHit = 0;
 
-	for (int region = 0; region < REGION_Max; region++)
+	for (int iRegion = REGION_Min; iRegion < REGION_Max; iRegion++)
 	{
-		int cSamp = fitter.m_samps.CSampFromRegion(static_cast<REGION>(region));
+		REGION region = REGION(iRegion);
+		int cSamp = fitter.m_samps.CSampFromRegion(region);
 		if (cSamp > 0)
 		{
 			float x = mpRegionSum[region].x / float(cSamp);

@@ -196,9 +196,9 @@ void SetSphereAnchors(SPoint (&mpRegionAnchor)[REGION_Max])
 		float zMiddle = sinf(latMiddle);
 		float dLongitude = (M_PI * 2.0 / float(collar.m_cRegion));
 
-		for (int subregion = 0; subregion < collar.m_cRegion; ++subregion)
+		for (int iRegionCollar = 0; iRegionCollar < collar.m_cRegion; ++iRegionCollar)
 		{
-			float longitude = (float(subregion) + 0.5f) * dLongitude;
+			float longitude = (float(iRegionCollar) + 0.5f) * dLongitude;
 
 			// negation here is to flip regions into a winding order that matches
 			// the subregion from longitude calculation in RegionFromXyz().
@@ -222,30 +222,30 @@ void SetSphereAnchors(SPoint (&mpRegionAnchor)[REGION_Max])
 
 using namespace Partition;
 
-int RegionFromXyz(float x, float y, float z)
+REGION RegionFromXyz(float x, float y, float z)
 {
 	float latitude = (M_PI / 2.0) - atan2f(sqrtf(x * x + y * y), z);
 
-	int regionCur = 0;
+	int iRegion = REGION_Min;
 
 	for (auto collar : s_aCollar)
 	{
 		if (latitude >= collar.m_latMin)
 		{
 			if (collar.m_cRegion <= 1)
-				return regionCur;
+				return REGION(iRegion);
 
 			float longitude = atan2f(y, x) + M_PI;
-			int subregion = floorf(float(collar.m_cRegion) * longitude / (M_PI * 2.0));
-			subregion = std::clamp(subregion, 0, collar.m_cRegion - 1);
+			int dIRegion = floorf(float(collar.m_cRegion) * longitude / (M_PI * 2.0));
+			dIRegion = std::clamp(dIRegion, 0, collar.m_cRegion - 1);
 
-			return regionCur + subregion;
+			return REGION(iRegion + dIRegion);
 		}
 
-		regionCur += collar.m_cRegion;
+		iRegion += collar.m_cRegion;
 	}
 
-	return 0;
+	return REGION_Default;
 }
 
 const SPoint & PntAnchorFromRegion(int region)
