@@ -9,8 +9,11 @@
 
 namespace libcalib
 {
+
 namespace Sphere
 {
+
+using namespace Quality;
 
 // pigeonhole invariant: when the buffer is full, at least one region has >1 sample
 static_assert(CFitter::s_cSampMax > REGION_Max);
@@ -121,22 +124,24 @@ int CFitter::CSampleSet::ISampOldestInRegion(REGION region) const
 
 
 CFitter::CFitter()
-	: m_cal()
-	, m_errFit(SQuality::s_errMax)
-	, m_solver(SOLVER_Nil)
-	, m_samps()
-	, m_quality()
-	, m_errFitNextAged(SQuality::s_errMax)
-	, m_calNext()
-	, m_errFitNext(SQuality::s_errMax)
-	, m_A()
-	, m_invA()
-	, m_matA()
-	, m_matB()
-	, m_vecA()
-	, m_vecB()
-	, m_discard_count(0)
-	, m_new_wait_count(0)
+: m_cal()
+, m_solver(SOLVER_Nil)
+, m_samps()
+, m_calNext()
+, m_errFitNext(s_errMax)
+, m_errFitNextAged(s_errMax)
+, m_A()
+, m_invA()
+, m_matA()
+, m_matB()
+, m_vecA()
+, m_vecB()
+, m_discard_count(0)
+, m_new_wait_count(0)
+, m_errGaps(s_errMax)
+, m_errVariance(s_errMax)
+, m_errWobble(s_errMax)
+, m_errFit(s_errMax)
 {
 }
 
@@ -144,7 +149,7 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 {
 	// When enough data is collected (gaps error is low), assume we
 	// have a pretty good coverage and the field stregth is known.
-	float errGaps = m_quality.m_errGaps;
+	float errGaps = m_errGaps;
 	if (errGaps < 25.0f && FHasSolution())
 	{
 		// occasionally look for points farthest from average field strength
@@ -159,16 +164,21 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 		{
 			int iSampOutlier = -1;
 			float dUtBOutlier = 0.0f;
+			REGION regionOutlier = REGION_Nil;
 			
-			for (int iSamp = 0; iSamp < m_samps.CSamp(); iSamp++)
+			int iSamp = 0;
+			for (const auto & samp : m_samps)
 			{
-				float dUtB = fabsf(m_samps.Samp(iSamp).m_field - m_cal.m_sB);
+				float dB = fabsf(samp.m_sB - m_cal.m_sB);
 				
-				if (dUtB > dUtBOutlier)
+				if (dB > dUtBOutlier)
 				{
-					dUtBOutlier = dUtB;
+					dUtBOutlier = dB;
 					iSampOutlier = iSamp;
+					regionOutlier = samp.m_region;
 				}
+
+				++iSamp;
 			}
 
 			if (iSampOutlier >= 0)
@@ -176,7 +186,7 @@ int CFitter::ISampFieldOutlier(REGION regionIncoming)
 				// only evict this outlier if its region is at least as populated
 				// as the region we're about to add to — evictions must not make
 				// coverage less uniform than additions
-				if (m_samps.CSampFromRegion(m_samps.Samp(iSampOutlier).m_region) >=
+				if (m_samps.CSampFromRegion(regionOutlier) >=
 					m_samps.CSampFromRegion(regionIncoming))
 				{
 					m_discard_count = 0;
@@ -211,7 +221,7 @@ void CFitter::AddSample(const SPoint & pntRaw, SPoint * pPntCal)
 	//	instead, we update them after every new calibration is accepted
 	//	or when specifically asked to.
 
-	m_quality.Reset();
+	ResetQuality();
 }
 
 // run the magnetic calibration
@@ -262,7 +272,7 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 
 	m_new_wait_count = 0;
 
-	if (m_samps.CSamp() < s_cSampMin4INV)
+	if (m_samps.m_cSamp < s_cSampMin4INV)
 		return false;
 
 	if (m_solver != SOLVER_Nil) {
@@ -271,13 +281,13 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 	}
 
 	// is enough data collected
-	if (m_samps.CSamp() < s_cSampMin7EIG)
+	if (m_samps.m_cSamp < s_cSampMin7EIG)
 	{
 		solver = SOLVER_4Inv;
 		UpdateCalibration4INV(); // 4 element matrix inversion calibration
 		m_errFitNext = fmax(m_errFitNext, 12.0f);
 	}
-	else if (m_samps.CSamp() < s_cSampMin10EIG)
+	else if (m_samps.m_cSamp < s_cSampMin10EIG)
 	{
 		solver = SOLVER_7Eig;
 		UpdateCalibration7EIG(); // 7 element eigenpair calibration
@@ -330,8 +340,7 @@ bool CFitter::FHasNewCalibration(float * pSMagChange)
 
 			m_samps.Recalibrate(m_cal);
 
-			m_quality.Reset();
-			m_quality.Ensure(*this);
+			ForceUpdateQuality();
 
 			return true; // indicates new calibration applied
 		}
@@ -374,11 +383,12 @@ void CFitter::UpdateCalibration4INV()
 	}
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
+	const SPoint & BpOffset = m_samps.m_aSamp[0].m_pntRaw;
 
 	// use from MINEQUATIONS up to MAXEQUATIONS entries from magnetic buffer to compute matrices
-	for (j = 0; j < m_samps.CSamp(); j++) {
-		const SPoint & BpCur = m_samps.Samp(j).m_pntRaw;
+	for (const auto & samp : m_samps)
+	{
+		const SPoint & BpCur = samp.m_pntRaw;
 
 		// store scaled and offset fBp[XYZ] in m_vecA[0-2] and fBp[XYZ]^2 in m_vecA[3-5]
 		for (k = X; k <= Z; k++) {
@@ -413,7 +423,7 @@ void CFitter::UpdateCalibration4INV()
 	}
 
 	// set the last element of the measurement matrix to the number of buffer elements used
-	m_matA[3][3] = float(m_samps.CSamp());
+	m_matA[3][3] = float(m_samps.m_cSamp);
 
 	// use above diagonal elements of symmetric m_matA to set both m_matB and m_matA to X^T.X
 	for (i = 0; i < 4; i++) {
@@ -470,7 +480,7 @@ void CFitter::UpdateCalibration4INV()
 
 	// calculate the trial fit error (percent) normalized to number of measurements
 	// and scaled geomagnetic field strength
-	m_errFitNext = sqrtf(fE / float(m_samps.CSamp())) * 100.0F /
+	m_errFitNext = sqrtf(fE / float(m_samps.m_cSamp)) * 100.0F /
 			(2.0F * m_calNext.m_sB * m_calNext.m_sB);
 
 	// correct the hard iron estimate for FMATRIXSCALING and the offsets applied (result in uT)
@@ -497,7 +507,7 @@ void CFitter::UpdateCalibration7EIG()
 	fscaling = 1.0F / Mag::s_sBDefault;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
+	SPoint BpOffset = m_samps.m_aSamp[0].m_pntRaw;
 
 	// zero the on and above diagonal elements of the 7x7 symmetric measurement matrix m_matA
 	for (m = 0; m < 7; m++) {
@@ -507,8 +517,9 @@ void CFitter::UpdateCalibration7EIG()
 	}
 
 	// place from MINEQUATIONS to MAXEQUATIONS entries into product matrix m_matA
-	for (j = 0; j < m_samps.CSamp(); j++) {
-		const SPoint& BpCur = m_samps.Samp(j).m_pntRaw;
+	for (const auto & samp: m_samps)
+	{
+		const SPoint& BpCur = samp.m_pntRaw;
 
 		// apply the offset and scaling and store in m_vecA
 		for (k = X; k <= Z; k++) {
@@ -533,7 +544,7 @@ void CFitter::UpdateCalibration7EIG()
 	}
 
 	// finally set the last element m_matA[6][6] to the number of measurements
-	m_matA[6][6] = float(m_samps.CSamp());
+	m_matA[6][6] = float(m_samps.m_cSamp);
 
 	// copy the above diagonal elements of m_matA to below the diagonal
 	for (m = 1; m < 7; m++) {
@@ -579,7 +590,7 @@ void CFitter::UpdateCalibration7EIG()
 
 	// calculate the trial normalized fit error as a percentage
 	m_errFitNext = 50.0F *
-		sqrtf(fabs(m_vecA[j]) / float(m_samps.CSamp())) / fabs(ftmp);
+		sqrtf(fabs(m_vecA[j]) / float(m_samps.m_cSamp)) / fabs(ftmp);
 
 	// normalize the ellipsoid matrix A to unit determinant
 	f3x3matrixAeqAxScalar(m_A, powf(det, -(s_sOneThird)));
@@ -613,7 +624,7 @@ void CFitter::UpdateCalibration10EIG()
 	fscaling = 1.0F / Mag::s_sBDefault;
 
 	// the offsets are guaranteed to be set from the first element but to avoid compiler error
-	SPoint BpOffset = m_samps.Samp(0).m_pntRaw;
+	SPoint BpOffset = m_samps.m_aSamp[0].m_pntRaw;
 
 	// zero the on and above diagonal elements of the 10x10 symmetric measurement matrix m_matA
 	for (m = 0; m < 10; m++) {
@@ -623,8 +634,8 @@ void CFitter::UpdateCalibration10EIG()
 	}
 
 	// sum between MINEQUATIONS to MAXEQUATIONS entries into the 10x10 product matrix m_matA
-	for (j = 0; j < m_samps.CSamp(); j++) {
-		const SPoint& BpCur = m_samps.Samp(j).m_pntRaw;
+	for (const auto & samp : m_samps) {
+		const SPoint& BpCur = samp.m_pntRaw;
 
 		// apply the fixed offset and scaling and enter into m_vecA[6-8]
 		for (k = X; k <= Z; k++) {
@@ -654,7 +665,7 @@ void CFitter::UpdateCalibration10EIG()
 	}
 
 	// set the last element m_matA[9][9] to the number of measurements
-	m_matA[9][9] = float(m_samps.CSamp());
+	m_matA[9][9] = float(m_samps.m_cSamp);
 
 	// copy the above diagonal elements of symmetric product matrix m_matA to below the diagonal
 	for (m = 1; m < 10; m++) {
@@ -715,7 +726,7 @@ void CFitter::UpdateCalibration10EIG()
 
 	// calculate the trial normalized fit error as a percentage
 	m_errFitNext = 50.0F * sqrtf(
-		fabs(m_vecA[j]) / float(m_samps.CSamp())) /
+		fabs(m_vecA[j]) / float(m_samps.m_cSamp)) /
 		(m_calNext.m_sB * m_calNext.m_sB);
 
 	// correct for the measurement matrix offset and scaling and
@@ -794,14 +805,14 @@ void CFitter::SSample::Calibrate(const Mag::SCal & cal)
 	y = m_pntCal.y;
 	z = m_pntCal.z;
 
-	m_field = sqrtf(x * x + y * y + z * z);
+	m_sB = sqrtf(x * x + y * y + z * z);
 
-	if (m_field > 0.0f)
+	if (m_sB > 0.0f)
 	{
 		m_region = RegionFromXyz(
-					m_pntCal.x / m_field,
-					m_pntCal.y / m_field,
-					m_pntCal.z / m_field);
+					m_pntCal.x / m_sB,
+					m_pntCal.y / m_sB,
+					m_pntCal.z / m_sB);
 	}
 	else
 	{

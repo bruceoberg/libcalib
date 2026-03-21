@@ -7,53 +7,26 @@ namespace libcalib
 
 namespace Sphere {
 
-class CFitter;
-
-struct SQuality
+namespace Quality
 {
-	SQuality();
-	
-	void Reset()
-			{ m_isValid = false; }
-	void Ensure(const CFitter & fitter);
-
-	bool AreErrorsOk() const;
-	bool AreErrorsBad() const;
-
-	// Discussion of what these 4 quality metrics really do
-	// https://forum.pjrc.com/threads/59277-Motion-Sensor-Calibration-Tool-Parameter-Understanding
-	// All are 0..100, 0 being perfection and 100 being "all error".
-
-	float	m_errGaps;		// how much of the sphere's surface is missing data points.
-	float	m_errVariance;	// how much of the data is not located on the (imagined) surface of the sphere.
-	float	m_errWobble;	// how far an estimated the "center of mass" is from the ideal center.
-	float	m_errFit;		// how closely the data matches a perfect sphere.
-
-	static constexpr float s_errMax = 100.0f;
-
-private:
-	float	ErrGaps(const CFitter & fitter);
-	float	ErrVariance(const CFitter & fitter);
-	float	ErrWobble(const CFitter & fitter);
-
-	bool	m_isValid;
+	constexpr float s_errMax = 100.0f;
 
 	// these taken from MyFrame::OnTimer() in the original MotionCal app.
 	//	(https://github.com/PaulStoffregen/MotionCal/blob/master/gui.cpp)
 
 	// errors must all be below these values for calibration to be considered ok
 
-	static constexpr float s_errGapsOkMin = 15.0f;
-	static constexpr float s_errVarianceOkMin = 4.5f;
-	static constexpr float s_errWobbleOkMin = 4.0f;
-	static constexpr float s_errFitOkMin = 5.0f;
+	constexpr float s_errGapsOkMin = 15.0f;
+	constexpr float s_errVarianceOkMin = 4.5f;
+	constexpr float s_errWobbleOkMin = 4.0f;
+	constexpr float s_errFitOkMin = 5.0f;
 
 	// if errors all go above these values, the calibration is not ok anymore.
 
-	static constexpr float s_errGapsBadMax = 20.0f;
-	static constexpr float s_errVarianceBadMax = 5.0f;
-	static constexpr float s_errWobbleBadMax = 5.0f;
-	static constexpr float s_errFitBadMax = 6.0f;
+	constexpr float s_errGapsBadMax = 20.0f;
+	constexpr float s_errVarianceBadMax = 5.0f;
+	constexpr float s_errWobbleBadMax = 5.0f;
+	constexpr float s_errFitBadMax = 6.0f;
 
 };
 

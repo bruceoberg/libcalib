@@ -10,29 +10,21 @@ namespace libcalib
 namespace Sphere
 {
 
-SQuality::SQuality()
-: m_errGaps(s_errMax)
-, m_errVariance(s_errMax)
-, m_errWobble(s_errMax)
-, m_errFit(s_errMax)
-, m_isValid(false)
-{
-}
+using namespace Quality;
 
-void SQuality::Ensure(const CFitter & fitter)
+void CFitter::UpdateQuality()
 {
-	if (m_isValid)
+	if (m_fHasQuality)
 		return;
 
-	m_errGaps = ErrGaps(fitter);
-	m_errVariance = ErrVariance(fitter);
-	m_errWobble = ErrWobble(fitter);
-	m_errFit = fitter.m_errFit;
+	UpdateErrGaps();
+	UpdateErrVariance();
+	UpdateErrWobble();
 
-	m_isValid = true;
+	m_fHasQuality = true;
 }
 
-bool SQuality::AreErrorsOk() const
+bool CFitter::AreErrorsOk() const
 {
 	if (m_errGaps >= s_errGapsOkMin)
 		return false;
@@ -46,7 +38,7 @@ bool SQuality::AreErrorsOk() const
 	return true;
 }
 
-bool SQuality::AreErrorsBad() const
+bool CFitter::AreErrorsBad() const
 {
 	if (m_errGaps <= s_errGapsBadMax)
 		return false;
@@ -62,72 +54,79 @@ bool SQuality::AreErrorsBad() const
 
 // How many surface gaps
 
-float SQuality::ErrGaps(const CFitter & fitter)
+void CFitter::UpdateErrGaps()
 {
-	float err = 0.0f;
+	m_errGaps = 0.0f;
 
 	for (int iRegion = REGION_Min; iRegion < REGION_Max; iRegion++)
 	{
 		REGION region = REGION(iRegion);
-		int cSamp = fitter.m_samps.CSampFromRegion(region);
+		int cSamp = m_samps.CSampFromRegion(region);
 
 		if (cSamp == 0) {
-			err += 1.0f;
+			m_errGaps += 1.0f;
 		} else if (cSamp == 1) {
-			err += 0.2f;
+			m_errGaps += 0.2f;
 		} else if (cSamp == 2) {
-			err += 0.01f;
+			m_errGaps += 0.01f;
 		}
 	}
-
-	return err;
 }
 
 // Variance in magnitude
 
-float SQuality::ErrVariance(const CFitter & fitter)
+void CFitter::UpdateErrVariance()
 {
-	if (fitter.m_samps.CSamp() == 0)
-		return s_errMax;
-
-	float sum = 0.0f;
-	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
-		sum += fitter.m_samps.Samp(i).m_field;
+	if (m_samps.FIsEmpty())
+	{
+		m_errVariance = s_errMax;
+		return;
 	}
 
-	float mean = sum / float(fitter.m_samps.CSamp());
-
-	float variance = 0.0f;
-	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
-		float diff = fitter.m_samps.Samp(i).m_field - mean;
-		variance += diff * diff;
+	float sBSum = 0.0f;
+	int cSamp = 0;
+	for (const auto & samp : m_samps) {
+		sBSum += samp.m_sB;
+		cSamp += 1;
 	}
 
-	variance /= float(fitter.m_samps.CSamp());
+	float sBAverage = sBSum / cSamp;
 
-	return sqrtf(variance) / mean * s_errMax;
+	float sVariance = 0.0f;
+	for (const auto & samp : m_samps) {
+		float dSB = samp.m_sB - sBAverage;
+		sVariance += dSB * dSB;
+	}
+
+	sVariance /= cSamp;
+
+	m_errVariance = sqrtf(sVariance) / sBAverage * s_errMax;
 }
 
 // Offset of piecewise average data from ideal sphere surface
 
-float SQuality::ErrWobble(const CFitter & fitter)
+void CFitter::UpdateErrWobble()
 {
-	if (fitter.m_samps.CSamp() == 0)
-		return s_errMax;
-
-	float sum = 0.0f;
-	for (int i = 0; i < fitter.m_samps.CSamp(); i++) {
-		sum += fitter.m_samps.Samp(i).m_field;
+	if (m_samps.FIsEmpty())
+	{
+		m_errWobble = s_errMax;
+		return;
 	}
 
-	float radius = sum / float(fitter.m_samps.CSamp());
+	float sBSum = 0.0f;
+	int cSamp = 0;
+	for (const auto & samp : m_samps) {
+		sBSum += samp.m_sB;
+		cSamp += 1;
+	}
+
+	float sBAverage = sBSum / cSamp;
 
 	// compute per-region sums locally
 
 	SPoint mpRegionSum[REGION_Max] = {};
-	for (int i = 0; i < fitter.m_samps.CSamp(); i++)
+	for (const auto & samp : m_samps)
 	{
-		const auto & samp = fitter.m_samps.Samp(i);
 		mpRegionSum[samp.m_region].x += samp.m_pntCal.x;
 		mpRegionSum[samp.m_region].y += samp.m_pntCal.y;
 		mpRegionSum[samp.m_region].z += samp.m_pntCal.z;
@@ -141,31 +140,34 @@ float SQuality::ErrWobble(const CFitter & fitter)
 	for (int iRegion = REGION_Min; iRegion < REGION_Max; iRegion++)
 	{
 		REGION region = REGION(iRegion);
-		int cSamp = fitter.m_samps.CSampFromRegion(region);
-		if (cSamp > 0)
+		int cSampRegion = m_samps.CSampFromRegion(region);
+		if (cSampRegion > 0)
 		{
-			float x = mpRegionSum[region].x / float(cSamp);
-			float y = mpRegionSum[region].y / float(cSamp);
-			float z = mpRegionSum[region].z / float(cSamp);
+			float x = mpRegionSum[region].x / cSampRegion;
+			float y = mpRegionSum[region].y / cSampRegion;
+			float z = mpRegionSum[region].z / cSampRegion;
 
 			const SPoint & pntAnchor = PntAnchorFromRegion(region);
 
-			xoff += x - pntAnchor.x * radius;
-			yoff += y - pntAnchor.y * radius;
-			zoff += z - pntAnchor.z * radius;
+			xoff += x - pntAnchor.x * sBAverage;
+			yoff += y - pntAnchor.y * sBAverage;
+			zoff += z - pntAnchor.z * sBAverage;
 
 			cRegionHit++;
 		}
 	}
 
 	if (cRegionHit == 0)
-		return s_errMax;
+	{
+		m_errWobble = s_errMax;
+		return;
+	}
 
-	xoff /= float(cRegionHit);
-	yoff /= float(cRegionHit);
-	zoff /= float(cRegionHit);
+	xoff /= cRegionHit;
+	yoff /= cRegionHit;
+	zoff /= cRegionHit;
 
-	return sqrtf(xoff * xoff + yoff * yoff + zoff * zoff) / radius * s_errMax;
+	m_errWobble = sqrtf(xoff * xoff + yoff * yoff + zoff * zoff) / sBAverage * s_errMax;
 }
 
 } // namespace Sphere

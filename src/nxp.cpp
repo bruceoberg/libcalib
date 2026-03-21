@@ -611,7 +611,7 @@ void CNxp::Update(
 			m_mGl[X] = BCur * fcosdelta;
 			m_mGl[Z] = BCur * fsindelta;
 		} // end hyp == 0.0F
-	} // end m_isValid
+	} // end isBCurValid && !iMagJamming
 
 	// *********************************************************************************
 	// compute the a posteriori Euler angles from the orientation matrix

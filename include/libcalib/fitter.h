@@ -21,8 +21,9 @@ enum REGION
 
 // magnetic calibration & buffer structure
 
-struct CFitter
+class CFitter
 {
+public:
 	static const int s_cSampMax = 650; // Freescale's lib needs at least 392
 
 	enum SOLVER
@@ -47,7 +48,7 @@ struct CFitter
 					const Mag::SCal & cal)
 				: m_pntRaw(pntRaw),
 				  m_pntCal(),
-				  m_field(),
+				  m_sB(),
 				  m_region(REGION_Nil),
 				  m_id()
 					{ Calibrate(cal); }
@@ -56,7 +57,7 @@ struct CFitter
 
 		SPoint	m_pntRaw;	// raw sample
 		SPoint	m_pntCal;	// calibrated sample
-		float	m_field;	// length of calibrated sample
+		float	m_sB;		// geomagnetic field magnitude (uT) of calibrated sample
 		REGION	m_region;	// sphere partition region (0..REGION_Max-1)
 		ID		m_id;		// monotonically increasing ID assigned at insertion; lower = older
 	};
@@ -74,15 +75,21 @@ struct CFitter
 		REGION	RegionMostPopulated() const;
 		int		ISampOldestInRegion(REGION region) const;
 
-		int		CSamp() const
-					{ return m_cSamp; }
-		const SSample &
-				Samp(int i) const
-					{ return m_aSamp[i]; }
+		const SSample *
+				begin() const
+					{ return m_aSamp; }
+		const SSample *
+				end() const
+					{ return m_aSamp + m_cSamp; }
+		bool	FIsEmpty() const
+					{ return begin() == end(); }
+
 		int		CSampFromRegion(REGION region) const
 					{ return m_mpRegionCSamp[region]; }
 
 	private:
+		friend class CFitter;
+
 		SSample
 				m_aSamp[s_cSampMax];
 		int16_t	m_cSamp;
@@ -100,29 +107,39 @@ struct CFitter
 	bool	FHasSolution() const
 				{ return m_solver != SOLVER_Nil; }
 
-	void	EnsureQuality()
-				{ m_quality.Ensure(*this); }
-
-	bool	AreErrorsOk() const
-				{ return m_quality.AreErrorsOk(); }
-	bool	AreErrorsBad() const
-		{ return m_quality.AreErrorsBad(); }
+	void	ResetQuality()
+				{ m_fHasQuality = false; }
+	void	UpdateQuality();
+	void	ForceUpdateQuality()
+				{
+					ResetQuality();
+					UpdateQuality();
+				}
 
 	float	ErrGaps() const
-				{ return m_quality.m_errGaps; }
+				{ return m_errGaps; }
 	float	ErrVariance() const
-				{ return m_quality.m_errVariance; }
+				{ return m_errVariance; }
 	float	ErrWobble() const
-				{ return m_quality.m_errWobble; }
+				{ return m_errWobble; }
 	float	ErrFit() const
-				{ return m_quality.m_errFit; }
+				{ return m_errFit; }
+
+	bool	AreErrorsOk() const;
+	bool	AreErrorsBad() const;
+
+	const SSample *
+			begin() const
+				{ return m_samps.begin(); }
+	const SSample *
+			end() const
+				{ return m_samps.end(); }
+	bool	FIsEmpty() const
+				{ return m_samps.FIsEmpty(); }
 
 	Mag::SCal
 			m_cal;				// current calibration
-	float	m_errFit;			// current fit error %
 	SOLVER	m_solver;			// currently used solver
-	CSampleSet
-			m_samps;			// sample buffer with region bookkeeping
 
 private:
 	friend class ::libcalib::Calibrator;
@@ -133,6 +150,12 @@ private:
 	void	UpdateCalibration7EIG();
 	void	UpdateCalibration10EIG();
 
+	void	UpdateErrGaps();
+	void	UpdateErrVariance();
+	void	UpdateErrWobble();
+
+	CSampleSet
+			m_samps;			// sample buffer with region bookkeeping
 	Mag::SCal
 			m_calNext;				// trial calibration
 	float	m_errFitNext;			// trial value of fit error %
@@ -147,8 +170,16 @@ private:
 	int		m_discard_count;		// ISampFieldOutlier() counter for choosing field strength discards
 	int		m_new_wait_count;		// number of times FHasNewCalibration() had been called without doing any work
 
-	SQuality
-			m_quality;
+	// Discussion of what the quality metrics really do
+	// https://forum.pjrc.com/threads/59277-Motion-Sensor-Calibration-Tool-Parameter-Understanding
+	// All are 0..100, 0 being perfection and 100 being "all error".
+	// "fit" error is kept in parent pFitter.
+
+	bool	m_fHasQuality;	// are err values legit?
+	float	m_errGaps;		// how much of the sphere's surface is missing data points.
+	float	m_errVariance;	// how much of the data is not located on the (imagined) surface of the sphere.
+	float	m_errWobble;	// how far an estimated the "center of mass" is from the ideal center.
+	float	m_errFit;		// how well the calibrated samples fit a sphere.
 
 	static constexpr int
 			s_new_wait_count_max = 20; // in FHasNewCalibration() only do work after this many calls
