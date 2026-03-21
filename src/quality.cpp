@@ -1,4 +1,4 @@
-#include "libcalib/calibrator.h"
+#include "libcalib/mag_calibrator.h"
 #include "sphere.h"
 
 #include <math.h>
