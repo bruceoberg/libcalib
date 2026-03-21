@@ -2,7 +2,7 @@
 
 // IAhrs interface for all AHRS implementations.
 // Concrete subclasses: AhrsNxp, AhrsMahony, AhrsFusion.
-// Calibrator holds a non-owning IAhrs* and calls through this interface;
+// CCalibrator holds a non-owning IAhrs* and calls through this interface;
 // implementations own their internal state and oversampler (if any).
 
 #include "libcalib/common.h"

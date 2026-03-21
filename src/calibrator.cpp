@@ -4,8 +4,10 @@
 
 namespace libcalib
 {
+namespace Mag
+{
 
-void Calibrator::Reset()
+void CCalibrator::Reset()
 {
 	m_fitter.Reset();
 
@@ -16,7 +18,7 @@ void Calibrator::Reset()
 	m_ahrs.Reset();
 }
 
-void Calibrator::AddSample(const SSample & samp)
+void CCalibrator::AddSample(const SSample & samp)
 {
 	SPoint pntMagCal;
 
@@ -43,4 +45,5 @@ void Calibrator::AddSample(const SSample & samp)
 	m_ahrs.Read(&m_current_orientation);
 }
 
+} // namespace Mag
 } // namespace libcalib

@@ -6,7 +6,7 @@
 namespace libcalib
 {
 
-class Calibrator;
+namespace Mag { class CCalibrator; }
 
 namespace Sphere
 {
@@ -142,7 +142,7 @@ public:
 	SOLVER	m_solver;			// currently used solver
 
 private:
-	friend class ::libcalib::Calibrator;
+	friend class ::libcalib::Mag::CCalibrator;
 
 	int		ISampFieldOutlier(REGION regionIncoming);
 

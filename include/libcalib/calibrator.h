@@ -8,17 +8,19 @@
 
 namespace libcalib
 {
+namespace Mag
+{
 
-class Calibrator
+class CCalibrator
 {
 public:
-	static Calibrator & Ensure()
+	static CCalibrator & Ensure()
 	{
-		static Calibrator s_calib;
+		static CCalibrator s_calib;
 		return s_calib;
 	}
 
-	Calibrator()
+	CCalibrator()
 		{ Reset(); }
 
 	void Reset();
@@ -35,4 +37,5 @@ private:
 	static const int s_force_orientation_countdown_max = 240;
 };
 
+} // namespace Mag
 } // namespace libcalib
