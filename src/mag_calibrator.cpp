@@ -9,6 +9,8 @@ namespace Mag
 
 void CCalibrator::Reset()
 {
+	m_fStarted = false;
+
 	m_fitter.Reset();
 
 	m_current_orientation = SQuat();
@@ -16,6 +18,54 @@ void CCalibrator::Reset()
 	m_force_orientation_countdown = s_force_orientation_countdown_max;
 
 	m_ahrs.Reset();
+}
+
+void CCalibrator::Start()
+{
+	Reset();
+	m_fStarted = true;
+}
+
+void CCalibrator::Cancel()
+{
+	Reset();
+}
+
+void CCalibrator::OnSample(const SSample & samp)
+{
+	AddSample(samp);
+}
+
+void CCalibrator::Continue()
+{
+	// no-op — mag calibration has no discrete user-driven steps
+}
+
+bool CCalibrator::FIsDone() const
+{
+	return m_fStarted && m_fitter.AreErrorsOk();
+}
+
+float CCalibrator::UDone() const
+{
+	float u = 1.0f - m_fitter.ErrGaps() / 100.0f;
+	if (u < 0.0f)
+		u = 0.0f;
+	if (u > 1.0f)
+		u = 1.0f;
+	return u;
+}
+
+const char * CCalibrator::PChzInstructions() const
+{
+	if (m_fStarted && !FIsDone())
+		return "Rotate device in all directions";
+	return nullptr;
+}
+
+void CCalibrator::GetCalibration(Mag::SCal * pCal) const
+{
+	*pCal = m_fitter.m_cal;
 }
 
 void CCalibrator::AddSample(const SSample & samp)
