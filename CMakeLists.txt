@@ -6,6 +6,7 @@ add_library(libcalib STATIC)
 target_sources(libcalib
     PRIVATE
 		include/libcalib/ahrs.h
+		include/libcalib/gyro_calibrator.h
 		include/libcalib/mag_calibrator.h
 		include/libcalib/common.h
 		include/libcalib/fusion.h
@@ -14,6 +15,7 @@ target_sources(libcalib
 		include/libcalib/nxp.h
 		include/libcalib/quality.h
 		include/libcalib/sampler.h
+		src/gyro_calibrator.cpp
 		src/mag_calibrator.cpp
 		src/fusion.cpp
 		src/fitter.cpp
