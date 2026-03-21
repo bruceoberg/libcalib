@@ -10,12 +10,14 @@ target_sources(libcalib
 		include/libcalib/gyro_calibrator.h
 		include/libcalib/mag_calibrator.h
 		include/libcalib/common.h
+		include/libcalib/coordinator.h
 		include/libcalib/fusion.h
 		include/libcalib/fitter.h
 		include/libcalib/mahony.h
 		include/libcalib/nxp.h
 		include/libcalib/quality.h
 		include/libcalib/sampler.h
+		src/coordinator.cpp
 		src/accel_calibrator.cpp
 		src/gyro_calibrator.cpp
 		src/mag_calibrator.cpp
