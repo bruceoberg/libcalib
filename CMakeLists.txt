@@ -12,9 +12,11 @@ target_sources(libcalib
 		include/libcalib/common.h
 		include/libcalib/coordinator.h
 		include/libcalib/fusion.h
+		include/libcalib/lineparser.h
 		include/libcalib/fitter.h
 		include/libcalib/mahony.h
 		include/libcalib/nxp.h
+		include/libcalib/protocol.h
 		include/libcalib/quality.h
 		include/libcalib/sampler.h
 		src/coordinator.cpp
@@ -23,10 +25,12 @@ target_sources(libcalib
 		src/mag_calibrator.cpp
 		src/fusion.cpp
 		src/fitter.cpp
+		src/lineparser.cpp
 		src/mahony.cpp
 		src/matrix.cpp
 		src/matrix.h
 		src/nxp.cpp
+		src/protocol.cpp
 		src/quality.cpp
 		src/sampler.cpp
 		src/sphere.cpp
