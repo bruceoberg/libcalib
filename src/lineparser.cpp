@@ -42,11 +42,11 @@ void CLineParser::Reset()
 	m_cGCal = 0;
 }
 
-CLineParser::LINETYPE CLineParser::LinetypeFeedBytes(const uint8_t * pB, int cB)
+CLineParser::LINETYPE CLineParser::LinetypeFeedBytes(size_t cB, const uint8_t * pB)
 {
 	LINETYPE linetypeResult = LINETYPE_None;
 
-	for (int iB = 0; iB < cB; ++iB)
+	for (size_t iB = 0; iB < cB; ++iB)
 	{
 		char ch = static_cast<char>(pB[iB]);
 
@@ -95,7 +95,7 @@ CLineParser::LINETYPE CLineParser::LinetypeParseLine()
 	}
 	else if (strncmp(m_aChLine, "Cal1:", 5) == 0)
 	{
-		if (FParseCal(m_aChLine + 5, 10))
+		if (FParseCal(10, m_aChLine + 5))
 		{
 			m_linetype = LINETYPE_Cal1;
 			m_cGCal = 10;
@@ -103,7 +103,7 @@ CLineParser::LINETYPE CLineParser::LinetypeParseLine()
 	}
 	else if (strncmp(m_aChLine, "Cal2:", 5) == 0)
 	{
-		if (FParseCal(m_aChLine + 5, 9))
+		if (FParseCal(9, m_aChLine + 5))
 		{
 			m_linetype = LINETYPE_Cal2;
 			m_cGCal = 9;
@@ -200,13 +200,13 @@ bool CLineParser::FParseRaw(const char * pCh)
 	return true;
 }
 
-bool CLineParser::FParseCal(const char * pCh, int cGExpected)
+bool CLineParser::FParseCal(size_t cGExpected, const char * pCh)
 {
 	// Parse cGExpected comma-separated floats
 
 	char * pChEnd = nullptr;
 
-	for (int iG = 0; iG < cGExpected; ++iG)
+	for (size_t iG = 0; iG < cGExpected; ++iG)
 	{
 		m_aGCal[iG] = strtof(pCh, &pChEnd);
 

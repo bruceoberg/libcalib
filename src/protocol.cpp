@@ -23,11 +23,11 @@ uint16_t Crc16Update(uint16_t crc, uint8_t b)
 	return crc;
 }
 
-UCrc CrcFromBuffer(const uint8_t * pB, int cB)
+UCrc CrcFromBuffer(size_t cB, const uint8_t * pB)
 {
 	UCrc crc;
 	crc.m_w = 0xFFFF;
-	for (int i = 0; i < cB; ++i)
+	for (size_t i = 0; i < cB; ++i)
 		crc.m_w = Crc16Update(crc.m_w, pB[i]);
 	return crc;
 }
@@ -51,10 +51,10 @@ void CPacketParser::Reset()
 	m_fReady = false;
 }
 
-bool CPacketParser::FFeedBytes(const uint8_t * pB, int cB)
+bool CPacketParser::FFeedBytes(size_t cB, const uint8_t * pB)
 {
 	m_fReady = false;
-	for (int iB = 0; iB < cB; ++iB)
+	for (size_t iB = 0; iB < cB; ++iB)
 	{
 		FeedByte(pB[iB]);
 		if (m_fReady)
@@ -111,7 +111,7 @@ void CPacketParser::FeedByte(uint8_t b)
 bool CPacketParser::FParsePacket()
 {
 	// validate CRC over all 68 bytes — correct residual is 0x0000
-	UCrc crc = CrcFromBuffer(m_aB, s_cBPacket);
+	UCrc crc = CrcFromBuffer(s_cBPacket, m_aB);
 	if (crc.m_w != 0x0000)
 		return false;
 
@@ -180,21 +180,21 @@ void CManager::Update()
 	uint8_t aBuf[256];
 	for (;;)
 	{
-		int cB = m_pReader->CbRead(aBuf, static_cast<int>(sizeof(aBuf)));
-		if (cB <= 0)
+		size_t cB = m_pReader->CbRead(sizeof(aBuf), aBuf);
+		if (cB == 0)
 			break;
 
 		if (m_ver == VER_MotionCal)
 		{
 			// host receives text lines from device
-			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(aBuf, cB);
+			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(cB, aBuf);
 			if (lt != CLineParser::LINETYPE_None)
 				DispatchLine(lt);
 		}
 		else if (m_ver == VER_Imucal)
 		{
 			// device receives binary calibration packets from host
-			if (m_packetp.FFeedBytes(aBuf, cB))
+			if (m_packetp.FFeedBytes(cB, aBuf))
 			{
 				if (m_pReceiver != nullptr)
 					m_pReceiver->OnMagCal(m_packetp.Cal());
@@ -283,7 +283,7 @@ void CManager::SendSample(const SSample & samp)
 	int cCh = snprintf(aBuf, sizeof(aBuf),
 		"Raw:%d,%d,%d,%d,%d,%d,%d,%d,%d\r\n",
 		ax, ay, az, gx, gy, gz, mx, my, mz);
-	m_pWriter->Write(reinterpret_cast<const uint8_t *>(aBuf), cCh);
+	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 
 	// Uni: line — SI units
 	cCh = snprintf(aBuf, sizeof(aBuf),
@@ -297,7 +297,7 @@ void CManager::SendSample(const SSample & samp)
 		samp.m_pntMag.x,
 		samp.m_pntMag.y,
 		samp.m_pntMag.z);
-	m_pWriter->Write(reinterpret_cast<const uint8_t *>(aBuf), cCh);
+	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 }
 
 // --- SendMagCal ---
@@ -325,7 +325,7 @@ void CManager::SendMagCal(const Mag::SCal & cal)
 		0.0f, 0.0f, 0.0f,	// gyro offsets (not yet implemented)
 		cal.m_vecV.x, cal.m_vecV.y, cal.m_vecV.z,
 		cal.m_sB);
-	m_pWriter->Write(reinterpret_cast<const uint8_t *>(aBuf), cCh);
+	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 
 	// Cal2: flat row-major soft iron 3x3 (XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ)
 	const SMatrix3 & w = cal.m_matWInv;
@@ -334,7 +334,7 @@ void CManager::SendMagCal(const Mag::SCal & cal)
 		w.vecX.x, w.vecX.y, w.vecX.z,
 		w.vecY.x, w.vecY.y, w.vecY.z,
 		w.vecZ.x, w.vecZ.y, w.vecZ.z);
-	m_pWriter->Write(reinterpret_cast<const uint8_t *>(aBuf), cCh);
+	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 }
 
 // --- binary packet assembly (VER_MotionCal) ---
@@ -370,11 +370,11 @@ void CManager::SendBinaryPacket(const Mag::SCal & cal)
 	memcpy(&aB[2], aG, s_cG * sizeof(float));
 
 	// CRC-16 over bytes 0..65, append as little-endian
-	UCrc crc = CrcFromBuffer(aB, s_cBPacket - 2);
+	UCrc crc = CrcFromBuffer(s_cBPacket - 2, aB);
 	aB[66] = crc.m_aB[0];
 	aB[67] = crc.m_aB[1];
 
-	m_pWriter->Write(aB, s_cBPacket);
+	m_pWriter->Write(s_cBPacket, aB);
 }
 
 } // namespace Protocol

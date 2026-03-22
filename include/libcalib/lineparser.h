@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "libcalib/common.h"
@@ -34,7 +35,7 @@ public:
 	// Feed bytes. Returns LINETYPE_None while buffering,
 	// or a valid LINETYPE when a complete line is parsed.
 
-	LINETYPE LinetypeFeedBytes(const uint8_t * pB, int cB);
+	LINETYPE LinetypeFeedBytes(size_t cB, const uint8_t * pB);
 
 	// Accessors (valid after corresponding line type)
 
@@ -56,7 +57,7 @@ private:
 	LINETYPE LinetypeParseLine();
 	bool FParseUni(const char * pCh);
 	bool FParseRaw(const char * pCh);
-	bool FParseCal(const char * pCh, int cGExpected);
+	bool FParseCal(size_t cGExpected, const char * pCh);
 };
 
 } // namespace libcalib

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "libcalib/common.h"
@@ -23,12 +24,12 @@ enum VER
 
 struct IWriter	// tag = wtr
 {
-	virtual void	Write(const uint8_t * pB, int cB) = 0;
+	virtual void	Write(size_t cB, const uint8_t * pB) = 0;
 };
 
 struct IReader	// tag = rdr
 {
-	virtual int		CbRead(uint8_t * pB, int cBMax) = 0;	// returns bytes read, 0 if none
+	virtual size_t	CbRead(size_t cBMax, uint8_t * pB) = 0;	// returns bytes read, 0 if none
 };
 
 struct IReceiver	// tag = rcvr
@@ -50,7 +51,7 @@ union UCrc
 };
 
 uint16_t	Crc16Update(uint16_t crc, uint8_t b);
-UCrc		CrcFromBuffer(const uint8_t * pB, int cB);
+UCrc		CrcFromBuffer(size_t cB, const uint8_t * pB);
 
 // CPacketParser — binary calibration packet parser (68-byte MotionCal packets)
 
@@ -61,7 +62,7 @@ public:
 	void		Reset();
 
 	// Feed bytes one at a time. Returns true when a complete valid packet is parsed.
-	bool		FFeedBytes(const uint8_t * pB, int cB);
+	bool		FFeedBytes(size_t cB, const uint8_t * pB);
 
 	// Accessor (valid after FFeedBytes returns true)
 	const Mag::SCal &	Cal() const		{ return m_cal; }
