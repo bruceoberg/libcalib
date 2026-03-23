@@ -153,6 +153,7 @@ bool CPacketParser::FParsePacket()
 
 CManager::CManager(VER ver)
 : m_ver(ver),
+  m_verRemote(VER_Nil),
   m_pWriter(nullptr),
   m_pReader(nullptr),
   m_pReceiver(nullptr),
@@ -168,6 +169,13 @@ void CManager::Init(IWriter * pWriter, IReader * pReader, IReceiver * pReceiver)
 	m_pWriter = pWriter;
 	m_pReader = pReader;
 	m_pReceiver = pReceiver;
+
+	// reset detection state so re-detection is possible after port change
+	m_verRemote = VER_Nil;
+	m_linep.Reset();
+	m_packetp.Reset();
+	m_calPending = Mag::SCal();
+	m_fHasCal1 = false;
 }
 
 // --- Update: drain reader, feed ver-appropriate parser ---
@@ -184,16 +192,38 @@ void CManager::Update()
 		if (cB == 0)
 			break;
 
-		if (m_ver == VER_MotionCal)
+		if (m_verRemote == VER_Nil)
 		{
-			// host receives text lines from device
+			// detection phase: feed both parsers until one matches
+
+			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(cB, aBuf);
+			if (lt != CLineParser::LINETYPE_None)
+			{
+				// text line received — remote is VER_Imucal (device sending samples)
+				m_verRemote = VER_Imucal;
+				DispatchLine(lt);
+				continue;
+			}
+
+			if (m_packetp.FFeedBytes(cB, aBuf))
+			{
+				// binary packet received — remote is VER_MotionCal (host sending cal)
+				m_verRemote = VER_MotionCal;
+				if (m_pReceiver != nullptr)
+					m_pReceiver->OnMagCal(m_packetp.Cal());
+				continue;
+			}
+		}
+		else if (m_verRemote == VER_Imucal)
+		{
+			// remote sends text lines (Raw:, Uni:, Cal1:, Cal2:)
 			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(cB, aBuf);
 			if (lt != CLineParser::LINETYPE_None)
 				DispatchLine(lt);
 		}
-		else if (m_ver == VER_Imucal)
+		else if (m_verRemote == VER_MotionCal)
 		{
-			// device receives binary calibration packets from host
+			// remote sends binary calibration packets
 			if (m_packetp.FFeedBytes(cB, aBuf))
 			{
 				if (m_pReceiver != nullptr)

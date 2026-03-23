@@ -95,6 +95,10 @@ public:
 	void		Init(IWriter * pWriter, IReader * pReader, IReceiver * pReceiver);
 	void		Update();						// drain IReader, parse, fire IReceiver callbacks
 
+	// detected remote protocol version (VER_Nil until first valid message is parsed)
+	VER			VerRemote() const				{ return m_verRemote; }
+	bool		FHasRemote() const				{ return m_verRemote != VER_Nil; }
+
 	// semantic send API — clients call these directly, CManager handles wire format
 	void		SendSample(const SSample & samp);		// VER_Imucal: emits Raw: + Uni: lines
 	void		SendMagCal(const Mag::SCal & cal);		// VER_Imucal: emits Cal1:/Cal2: lines
@@ -108,6 +112,7 @@ private:
 	void		SendBinaryPacket(const Mag::SCal & cal);
 
 	VER				m_ver;
+	VER				m_verRemote;	// detected from incoming data; VER_Nil until identified
 	IWriter *		m_pWriter;
 	IReader *		m_pReader;
 	IReceiver *		m_pReceiver;
