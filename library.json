@@ -1,0 +1,13 @@
+{
+	"name": "libcalib",
+	"description": "Embedded-portable IMU calibration library (accel, gyro, magnetometer)",
+	"license": "MIT",
+	"build": {
+		"srcDir": "src",
+		"includeDir": "include",
+		"srcFilter": ["+<*>", "-<matrix.h>", "-<sphere.h>"]
+	},
+	"dependencies": {
+		"Fusion": "*"
+	}
+}
