@@ -100,7 +100,10 @@ public:
 	bool		FHasRemote() const				{ return m_verRemote != VER_Nil; }
 
 	// semantic send API — clients call these directly, CManager handles wire format
-	void		SendSample(const SSample & samp);		// VER_Imucal: emits Raw: + Uni: lines
+	void		SendSensorData(							// VER_Imucal: emits Raw: + Uni: lines
+					float xAccel, float yAccel, float zAccel,	// m/s²
+					float xGyro,  float yGyro,  float zGyro,	// rad/s
+					float xMag,   float yMag,   float zMag);	// µT
 	void		SendMagCal(const Mag::SCal & cal);		// VER_Imucal: emits Cal1:/Cal2: lines
 													// VER_MotionCal: emits 68-byte binary packet
 

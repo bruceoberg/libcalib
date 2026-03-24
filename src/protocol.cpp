@@ -290,9 +290,12 @@ void CManager::DispatchLine(CLineParser::LINETYPE lt)
 	}
 }
 
-// --- SendSample (VER_Imucal only) ---
+// --- SendSensorData (VER_Imucal only) ---
 
-void CManager::SendSample(const SSample & samp)
+void CManager::SendSensorData(
+	float xAccel, float yAccel, float zAccel,	// m/s²
+	float xGyro,  float yGyro,  float zGyro,	// rad/s
+	float xMag,   float yMag,   float zMag)	// µT
 {
 	if (m_ver != VER_Imucal || m_pWriter == nullptr)
 		return;
@@ -300,33 +303,28 @@ void CManager::SendSample(const SSample & samp)
 	char aBuf[256];
 
 	// Raw: line — int16 encoded values
-	int16_t ax = static_cast<int16_t>(samp.m_pntAccel.x * 8192.0f);
-	int16_t ay = static_cast<int16_t>(samp.m_pntAccel.y * 8192.0f);
-	int16_t az = static_cast<int16_t>(samp.m_pntAccel.z * 8192.0f);
-	int16_t gx = static_cast<int16_t>(samp.m_pntGyro.x * 16.0f);
-	int16_t gy = static_cast<int16_t>(samp.m_pntGyro.y * 16.0f);
-	int16_t gz = static_cast<int16_t>(samp.m_pntGyro.z * 16.0f);
-	int16_t mx = static_cast<int16_t>(samp.m_pntMag.x * 10.0f);
-	int16_t my = static_cast<int16_t>(samp.m_pntMag.y * 10.0f);
-	int16_t mz = static_cast<int16_t>(samp.m_pntMag.z * 10.0f);
+	// scale factors match MotionCal's *_PER_COUNT inverses
+	int16_t nxA = static_cast<int16_t>(GFromMPerSecSq(xAccel) * 8192.0f);
+	int16_t nyA = static_cast<int16_t>(GFromMPerSecSq(yAccel) * 8192.0f);
+	int16_t nzA = static_cast<int16_t>(GFromMPerSecSq(zAccel) * 8192.0f);
+	int16_t nxG = static_cast<int16_t>(DegFromRad(xGyro) * 16.0f);
+	int16_t nyG = static_cast<int16_t>(DegFromRad(yGyro) * 16.0f);
+	int16_t nzG = static_cast<int16_t>(DegFromRad(zGyro) * 16.0f);
+	int16_t nxM = static_cast<int16_t>(xMag * 10.0f);
+	int16_t nyM = static_cast<int16_t>(yMag * 10.0f);
+	int16_t nzM = static_cast<int16_t>(zMag * 10.0f);
 
 	int cCh = snprintf(aBuf, sizeof(aBuf),
 		"Raw:%d,%d,%d,%d,%d,%d,%d,%d,%d\r\n",
-		ax, ay, az, gx, gy, gz, mx, my, mz);
+		nxA, nyA, nzA, nxG, nyG, nzG, nxM, nyM, nzM);
 	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 
-	// Uni: line — SI units
+	// Uni: line — already SI units, print directly
 	cCh = snprintf(aBuf, sizeof(aBuf),
-		"Uni:%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n",
-		MPerSecSqFromG(samp.m_pntAccel.x),
-		MPerSecSqFromG(samp.m_pntAccel.y),
-		MPerSecSqFromG(samp.m_pntAccel.z),
-		RadFromDeg(samp.m_pntGyro.x),
-		RadFromDeg(samp.m_pntGyro.y),
-		RadFromDeg(samp.m_pntGyro.z),
-		samp.m_pntMag.x,
-		samp.m_pntMag.y,
-		samp.m_pntMag.z);
+		"Uni:%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f\r\n",
+		xAccel, yAccel, zAccel,
+		xGyro, yGyro, zGyro,
+		xMag, yMag, zMag);
 	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
 }
 
