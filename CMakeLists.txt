@@ -12,7 +12,8 @@ target_sources(libcalib
 		include/libcalib/common.h
 		include/libcalib/coordinator.h
 		include/libcalib/fusion.h
-		include/libcalib/lineparser.h
+		include/libcalib/protocol_text.h
+		include/libcalib/protocol_bin.h
 		include/libcalib/fitter.h
 		include/libcalib/mahony.h
 		include/libcalib/nxp.h
@@ -25,7 +26,8 @@ target_sources(libcalib
 		src/mag_calibrator.cpp
 		src/fusion.cpp
 		src/fitter.cpp
-		src/lineparser.cpp
+		src/protocol_text.cpp
+		src/protocol_bin.cpp
 		src/mahony.cpp
 		src/matrix.cpp
 		src/matrix.h

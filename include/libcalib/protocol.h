@@ -4,7 +4,8 @@
 #include <stdint.h>
 
 #include "libcalib/common.h"
-#include "libcalib/lineparser.h"
+#include "libcalib/protocol_text.h"
+#include "libcalib/protocol_bin.h"
 
 namespace libcalib
 {
@@ -39,96 +40,45 @@ struct IReceiver	// tag = rcvr
 	// NOTE(claude) OnAccelCal and OnGyroCal deferred until those calibration types are defined
 };
 
-// packet constants
-static const int s_cBPacket = 68;
-extern uint8_t g_aBHeader[2];		// { 0x75, 0x54 }
-
-// CRC
-union UCrc
-{
-	uint16_t	m_w;
-	uint8_t		m_aB[2];	// [0] = low, [1] = high
-};
-
-uint16_t	Crc16Update(uint16_t crc, uint8_t b);
-UCrc		CrcFromBuffer(size_t cB, const uint8_t * pB);
-
-// CPacketParser — binary calibration packet parser (68-byte MotionCal packets)
-
-class CPacketParser	// tag = packetp
-{
-public:
-				CPacketParser();
-	void		Reset();
-
-	// Feed bytes one at a time. Returns true when a complete valid packet is parsed.
-	bool		FFeedBytes(size_t cB, const uint8_t * pB);
-
-	// Accessor (valid after FFeedBytes returns true)
-	const Mag::SCal &	Cal() const		{ return m_cal; }
-
-private:
-	void		FeedByte(uint8_t b);
-	bool		FParsePacket();
-
-	enum PKSTATE
-	{
-		PKSTATE_Header,
-		PKSTATE_Body,
-
-		PKSTATE_Max,
-		PKSTATE_Nil = -1
-	};
-
-	PKSTATE		m_pkstate;
-	int			m_iB;
-	uint8_t		m_aB[s_cBPacket];
-	Mag::SCal	m_cal;
-	bool		m_fReady;
-};
-
 class CManager	// tag = mgr
 {
 public:
-				CManager(VER ver);
+			CManager(VER ver);
 
-	void		Init(IWriter * pWriter, IReader * pReader, IReceiver * pReceiver);
-	void		Update();						// drain IReader, parse, fire IReceiver callbacks
+	void	Init(IWriter * pWriter, IReader * pReader, IReceiver * pReceiver);
+	void	Update();						// drain IReader, parse, fire IReceiver callbacks
 
 	// detected remote protocol version (VER_Nil until first valid message is parsed)
-	VER			VerRemote() const				{ return m_verRemote; }
-	bool		FHasRemote() const				{ return m_verRemote != VER_Nil; }
+	VER		VerRemote() const				{ return m_verRemote; }
+	bool	FHasRemote() const				{ return m_verRemote != VER_Nil; }
 
 	// semantic send API — clients call these directly, CManager handles wire format
-	void		SendSensorData(							// VER_Imucal: emits Raw: + Uni: lines
-					float xAccel, float yAccel, float zAccel,	// m/s²
-					float xGyro,  float yGyro,  float zGyro,	// rad/s
-					float xMag,   float yMag,   float zMag);	// µT
-	void		SendMagCal(const Mag::SCal & cal);		// VER_Imucal: emits Cal1:/Cal2: lines
-													// VER_MotionCal: emits 68-byte binary packet
+	void	SendSensorData(							// VER_Imucal: emits Raw: + Uni: lines
+				float xAccel, float yAccel, float zAccel,	// m/s²
+				float xGyro,  float yGyro,  float zGyro,	// rad/s
+				float xMag,   float yMag,   float zMag);	// µT
+	void	SendMagCal(const Mag::SCal & cal);		// VER_Imucal: emits Cal1:/Cal2: lines
+												// VER_MotionCal: emits 68-byte binary packet
 
 private:
-	// line parse dispatch — called from Update() when CLineParser completes a line
-	void		DispatchLine(CLineParser::LINETYPE lt);
+	// line parse dispatch — called from Update() when Text::CParser completes a line
+	void	DispatchLine(Text::CParser::LINEK linek);
 
-	// binary packet sending
-	void		SendBinaryPacket(const Mag::SCal & cal);
+	VER					m_ver;
+	VER					m_verRemote;	// detected from incoming data; VER_Nil until identified
+	IWriter *			m_pWriter;
+	IReader *			m_pReader;
+	IReceiver *			m_pReceiver;
 
-	VER				m_ver;
-	VER				m_verRemote;	// detected from incoming data; VER_Nil until identified
-	IWriter *		m_pWriter;
-	IReader *		m_pReader;
-	IReceiver *		m_pReceiver;
-
-	// line parser (handles Raw:, Uni:, Cal1:, Cal2:)
-	CLineParser		m_linep;
+	// text line parser (handles Raw:, Uni:, Cal1:, Cal2:)
+	Text::CParser		m_textp;
 
 	// Cal1:/Cal2: accumulation
-	Mag::SCal		m_calPending;
-	bool			m_fHasCal1;
+	Mag::SCal			m_calPending;
+	bool				m_fHasCal1;
 
 	// binary packet parser
-	CPacketParser	m_packetp;
+	Binary::CParser		m_binp;
 };
 
 } // namespace Protocol

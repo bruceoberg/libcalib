@@ -1,153 +1,9 @@
 #include "libcalib/protocol.h"
 
-#include <string.h>
-#include <stdio.h>
-
 namespace libcalib
 {
 namespace Protocol
 {
-
-// --- CRC-16/IBM (ARC): poly 0xA001, init 0xFFFF, reflected ---
-
-uint16_t Crc16Update(uint16_t crc, uint8_t b)
-{
-	crc ^= b;
-	for (int iBit = 0; iBit < 8; ++iBit)
-	{
-		if (crc & 1)
-			crc = (crc >> 1) ^ 0xA001;
-		else
-			crc = crc >> 1;
-	}
-	return crc;
-}
-
-UCrc CrcFromBuffer(size_t cB, const uint8_t * pB)
-{
-	UCrc crc;
-	crc.m_w = 0xFFFF;
-	for (size_t i = 0; i < cB; ++i)
-		crc.m_w = Crc16Update(crc.m_w, pB[i]);
-	return crc;
-}
-
-// packet header signature
-uint8_t g_aBHeader[2] = { 0x75, 0x54 };
-
-// --- CPacketParser ---
-
-CPacketParser::CPacketParser()
-{
-	Reset();
-}
-
-void CPacketParser::Reset()
-{
-	m_pkstate = PKSTATE_Header;
-	m_iB = 0;
-	memset(m_aB, 0, sizeof(m_aB));
-	m_cal = Mag::SCal();
-	m_fReady = false;
-}
-
-bool CPacketParser::FFeedBytes(size_t cB, const uint8_t * pB)
-{
-	m_fReady = false;
-	for (size_t iB = 0; iB < cB; ++iB)
-	{
-		FeedByte(pB[iB]);
-		if (m_fReady)
-			return true;
-	}
-	return false;
-}
-
-void CPacketParser::FeedByte(uint8_t b)
-{
-	switch (m_pkstate)
-	{
-	case PKSTATE_Header:
-		if (b == g_aBHeader[m_iB])
-		{
-			m_aB[m_iB] = b;
-			++m_iB;
-			if (m_iB == 2)
-				m_pkstate = PKSTATE_Body;
-		}
-		else
-		{
-			// reset: if b matches the first header byte, keep it
-			if (b == g_aBHeader[0])
-			{
-				m_aB[0] = b;
-				m_iB = 1;
-			}
-			else
-			{
-				m_iB = 0;
-			}
-		}
-		break;
-
-	case PKSTATE_Body:
-		m_aB[m_iB] = b;
-		++m_iB;
-		if (m_iB == s_cBPacket)
-		{
-			m_fReady = FParsePacket();
-			m_pkstate = PKSTATE_Header;
-			m_iB = 0;
-		}
-		break;
-
-	default:
-		m_pkstate = PKSTATE_Header;
-		m_iB = 0;
-		break;
-	}
-}
-
-bool CPacketParser::FParsePacket()
-{
-	// validate CRC over all 68 bytes — correct residual is 0x0000
-	UCrc crc = CrcFromBuffer(s_cBPacket, m_aB);
-	if (crc.m_w != 0x0000)
-		return false;
-
-	// extract 16 floats from packet body (bytes 2..65)
-	static const int s_cG = 16;
-	float aG[s_cG];
-	memcpy(aG, &m_aB[2], s_cG * sizeof(float));
-
-	// aG[0..2]  = accel zero-g offsets (unused for now)
-	// aG[3..5]  = gyro zero-rate offsets (unused for now)
-	// aG[6..8]  = mag hard iron xyz
-	// aG[9]     = mag field strength
-	// aG[10]    = soft iron XX
-	// aG[11]    = soft iron YY
-	// aG[12]    = soft iron ZZ
-	// aG[13]    = soft iron XY (= YX)
-	// aG[14]    = soft iron XZ (= ZX)
-	// aG[15]    = soft iron YZ (= ZY)
-
-	m_cal.m_vecV.x = aG[6];
-	m_cal.m_vecV.y = aG[7];
-	m_cal.m_vecV.z = aG[8];
-	m_cal.m_sB     = aG[9];
-
-	m_cal.m_matWInv.vecX.x = aG[10];	// XX
-	m_cal.m_matWInv.vecX.y = aG[13];	// XY
-	m_cal.m_matWInv.vecX.z = aG[14];	// XZ
-	m_cal.m_matWInv.vecY.x = aG[13];	// YX = XY (symmetric)
-	m_cal.m_matWInv.vecY.y = aG[11];	// YY
-	m_cal.m_matWInv.vecY.z = aG[15];	// YZ
-	m_cal.m_matWInv.vecZ.x = aG[14];	// ZX = XZ (symmetric)
-	m_cal.m_matWInv.vecZ.y = aG[15];	// ZY = YZ (symmetric)
-	m_cal.m_matWInv.vecZ.z = aG[12];	// ZZ
-
-	return true;
-}
 
 // --- CManager ---
 
@@ -157,10 +13,10 @@ CManager::CManager(VER ver)
   m_pWriter(nullptr),
   m_pReader(nullptr),
   m_pReceiver(nullptr),
-  m_linep(),
+  m_textp(),
   m_calPending(),
   m_fHasCal1(false),
-  m_packetp()
+  m_binp()
 {
 }
 
@@ -172,8 +28,8 @@ void CManager::Init(IWriter * pWriter, IReader * pReader, IReceiver * pReceiver)
 
 	// reset detection state so re-detection is possible after port change
 	m_verRemote = VER_Nil;
-	m_linep.Reset();
-	m_packetp.Reset();
+	m_textp.Reset();
+	m_binp.Reset();
 	m_calPending = Mag::SCal();
 	m_fHasCal1 = false;
 }
@@ -196,38 +52,38 @@ void CManager::Update()
 		{
 			// detection phase: feed both parsers until one matches
 
-			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(cB, aBuf);
-			if (lt != CLineParser::LINETYPE_None)
+			Text::CParser::LINEK linek = m_textp.LinekFeedBytes(cB, aBuf);
+			if (linek != Text::CParser::LINEK_None)
 			{
 				// text line received — remote is VER_Imucal (device sending samples)
 				m_verRemote = VER_Imucal;
-				DispatchLine(lt);
+				DispatchLine(linek);
 				continue;
 			}
 
-			if (m_packetp.FFeedBytes(cB, aBuf))
+			if (m_binp.FFeedBytes(cB, aBuf))
 			{
 				// binary packet received — remote is VER_MotionCal (host sending cal)
 				m_verRemote = VER_MotionCal;
 				if (m_pReceiver != nullptr)
-					m_pReceiver->OnMagCal(m_packetp.Cal());
+					m_pReceiver->OnMagCal(m_binp.Cal());
 				continue;
 			}
 		}
 		else if (m_verRemote == VER_Imucal)
 		{
 			// remote sends text lines (Raw:, Uni:, Cal1:, Cal2:)
-			CLineParser::LINETYPE lt = m_linep.LinetypeFeedBytes(cB, aBuf);
-			if (lt != CLineParser::LINETYPE_None)
-				DispatchLine(lt);
+			Text::CParser::LINEK linek = m_textp.LinekFeedBytes(cB, aBuf);
+			if (linek != Text::CParser::LINEK_None)
+				DispatchLine(linek);
 		}
 		else if (m_verRemote == VER_MotionCal)
 		{
 			// remote sends binary calibration packets
-			if (m_packetp.FFeedBytes(cB, aBuf))
+			if (m_binp.FFeedBytes(cB, aBuf))
 			{
 				if (m_pReceiver != nullptr)
-					m_pReceiver->OnMagCal(m_packetp.Cal());
+					m_pReceiver->OnMagCal(m_binp.Cal());
 			}
 		}
 	}
@@ -235,21 +91,21 @@ void CManager::Update()
 
 // --- line parse dispatch ---
 
-void CManager::DispatchLine(CLineParser::LINETYPE lt)
+void CManager::DispatchLine(Text::CParser::LINEK linek)
 {
 	if (m_pReceiver == nullptr)
 		return;
 
-	switch (lt)
+	switch (linek)
 	{
-	case CLineParser::LINETYPE_Raw:
-	case CLineParser::LINETYPE_Uni:
-		m_pReceiver->OnSample(m_linep.Samp());
+	case Text::CParser::LINEK_Raw:
+	case Text::CParser::LINEK_Uni:
+		m_pReceiver->OnSample(m_textp.Samp());
 		break;
 
-	case CLineParser::LINETYPE_Cal1:
+	case Text::CParser::LINEK_Cal1:
 		{
-			const float * pG = m_linep.PGCal();
+			const float * pG = m_textp.PGCal();
 			// pG[0..2] = accel offsets (unused for now)
 			// pG[3..5] = gyro offsets (unused for now)
 			// pG[6..8] = mag hard iron xyz
@@ -263,12 +119,12 @@ void CManager::DispatchLine(CLineParser::LINETYPE lt)
 		}
 		break;
 
-	case CLineParser::LINETYPE_Cal2:
+	case Text::CParser::LINEK_Cal2:
 		{
 			if (!m_fHasCal1)
 				break;
 
-			const float * pG = m_linep.PGCal();
+			const float * pG = m_textp.PGCal();
 			// Cal2: row-major flat: XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ
 			m_calPending.m_matWInv.vecX.x = pG[0];
 			m_calPending.m_matWInv.vecX.y = pG[1];
@@ -293,39 +149,14 @@ void CManager::DispatchLine(CLineParser::LINETYPE lt)
 // --- SendSensorData (VER_Imucal only) ---
 
 void CManager::SendSensorData(
-	float xAccel, float yAccel, float zAccel,	// m/s²
-	float xGyro,  float yGyro,  float zGyro,	// rad/s
-	float xMag,   float yMag,   float zMag)	// µT
+	float xAccel, float yAccel, float zAccel,
+	float xGyro,  float yGyro,  float zGyro,
+	float xMag,   float yMag,   float zMag)
 {
 	if (m_ver != VER_Imucal || m_pWriter == nullptr)
 		return;
 
-	char aBuf[256];
-
-	// Raw: line — int16 encoded values
-	// scale factors match MotionCal's *_PER_COUNT inverses
-	int16_t nxA = static_cast<int16_t>(GFromMPerSecSq(xAccel) * 8192.0f);
-	int16_t nyA = static_cast<int16_t>(GFromMPerSecSq(yAccel) * 8192.0f);
-	int16_t nzA = static_cast<int16_t>(GFromMPerSecSq(zAccel) * 8192.0f);
-	int16_t nxG = static_cast<int16_t>(DegFromRad(xGyro) * 16.0f);
-	int16_t nyG = static_cast<int16_t>(DegFromRad(yGyro) * 16.0f);
-	int16_t nzG = static_cast<int16_t>(DegFromRad(zGyro) * 16.0f);
-	int16_t nxM = static_cast<int16_t>(xMag * 10.0f);
-	int16_t nyM = static_cast<int16_t>(yMag * 10.0f);
-	int16_t nzM = static_cast<int16_t>(zMag * 10.0f);
-
-	int cCh = snprintf(aBuf, sizeof(aBuf),
-		"Raw:%d,%d,%d,%d,%d,%d,%d,%d,%d\r\n",
-		nxA, nyA, nzA, nxG, nyG, nzG, nxM, nyM, nzM);
-	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
-
-	// Uni: line — already SI units, print directly
-	cCh = snprintf(aBuf, sizeof(aBuf),
-		"Uni:%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f\r\n",
-		xAccel, yAccel, zAccel,
-		xGyro, yGyro, zGyro,
-		xMag, yMag, zMag);
-	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
+	Text::EmitSensorData(m_pWriter, xAccel, yAccel, zAccel, xGyro, yGyro, zGyro, xMag, yMag, zMag);
 }
 
 // --- SendMagCal ---
@@ -337,72 +168,14 @@ void CManager::SendMagCal(const Mag::SCal & cal)
 
 	if (m_ver == VER_MotionCal)
 	{
-		SendBinaryPacket(cal);
+		Binary::EmitCalibration(m_pWriter, cal);
 		return;
 	}
 
 	if (m_ver != VER_Imucal)
 		return;
 
-	char aBuf[256];
-
-	// Cal1: accel(0,0,0), gyro(0,0,0), hard iron xyz, field strength
-	int cCh = snprintf(aBuf, sizeof(aBuf),
-		"Cal1:%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n",
-		0.0f, 0.0f, 0.0f,	// accel offsets (not yet implemented)
-		0.0f, 0.0f, 0.0f,	// gyro offsets (not yet implemented)
-		cal.m_vecV.x, cal.m_vecV.y, cal.m_vecV.z,
-		cal.m_sB);
-	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
-
-	// Cal2: flat row-major soft iron 3x3 (XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ)
-	const SMatrix3 & w = cal.m_matWInv;
-	cCh = snprintf(aBuf, sizeof(aBuf),
-		"Cal2:%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\r\n",
-		w.vecX.x, w.vecX.y, w.vecX.z,
-		w.vecY.x, w.vecY.y, w.vecY.z,
-		w.vecZ.x, w.vecZ.y, w.vecZ.z);
-	m_pWriter->Write(cCh, reinterpret_cast<const uint8_t *>(aBuf));
-}
-
-// --- binary packet assembly (VER_MotionCal) ---
-
-void CManager::SendBinaryPacket(const Mag::SCal & cal)
-{
-	uint8_t aB[s_cBPacket];
-
-	// header
-	aB[0] = g_aBHeader[0];
-	aB[1] = g_aBHeader[1];
-
-	// assemble 16 floats at correct offsets
-	static const int s_cG = 16;
-	float aG[s_cG];
-	aG[0]  = 0.0f;				// accel zero-g X (not yet implemented)
-	aG[1]  = 0.0f;				// accel zero-g Y
-	aG[2]  = 0.0f;				// accel zero-g Z
-	aG[3]  = 0.0f;				// gyro zero-rate X (not yet implemented)
-	aG[4]  = 0.0f;				// gyro zero-rate Y
-	aG[5]  = 0.0f;				// gyro zero-rate Z
-	aG[6]  = cal.m_vecV.x;		// mag hard iron X
-	aG[7]  = cal.m_vecV.y;		// mag hard iron Y
-	aG[8]  = cal.m_vecV.z;		// mag hard iron Z
-	aG[9]  = cal.m_sB;			// mag field strength
-	aG[10] = cal.m_matWInv.vecX.x;	// soft iron XX
-	aG[11] = cal.m_matWInv.vecY.y;	// soft iron YY
-	aG[12] = cal.m_matWInv.vecZ.z;	// soft iron ZZ
-	aG[13] = cal.m_matWInv.vecX.y;	// soft iron XY
-	aG[14] = cal.m_matWInv.vecX.z;	// soft iron XZ
-	aG[15] = cal.m_matWInv.vecY.z;	// soft iron YZ
-
-	memcpy(&aB[2], aG, s_cG * sizeof(float));
-
-	// CRC-16 over bytes 0..65, append as little-endian
-	UCrc crc = CrcFromBuffer(s_cBPacket - 2, aB);
-	aB[66] = crc.m_aB[0];
-	aB[67] = crc.m_aB[1];
-
-	m_pWriter->Write(s_cBPacket, aB);
+	Text::EmitMagCal(m_pWriter, cal);
 }
 
 } // namespace Protocol
