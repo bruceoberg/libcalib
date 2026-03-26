@@ -29,6 +29,14 @@ public:
 
 	void GetCalibration(SMatrix3 * pMat, SPoint * pVecBias) const;
 
+	// Progress accessors for UI
+
+	int Face() const					{ return m_face; }
+	int CSampFace() const				{ return m_cSampFace; }
+
+	static const int s_cFaceMax = 6;	// == FACE_Max
+	static const int s_cSampPerFace = 50;
+
 private:
 	enum FACE
 	{
@@ -53,8 +61,6 @@ private:
 	SPoint m_mpFacePntAvg[FACE_Max];
 	SMatrix3 m_mat;
 	SPoint m_vecBias;
-
-	static const int s_cSampPerFace = 50;
 };
 
 } // namespace Accel

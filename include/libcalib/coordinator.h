@@ -29,6 +29,7 @@ public:
 	// ICalibrator-style interface
 
 	void Start();
+	void StartAtPhase(PHASE phase);		// reset from phase onward, start there
 	void Cancel();
 	void OnSample(const SSample & samp);
 	void Continue();
@@ -40,6 +41,12 @@ public:
 	// Phase accessor
 
 	PHASE Phase() const					{ return m_phase; }
+
+	// Const sub-calibrator access — for UI metrics (quality, per-face progress, etc.)
+
+	const Gyro::CCalibrator & GyroCalib() const		{ return m_gyrocal; }
+	const Accel::CCalibrator & AccelCalib() const	{ return m_accelcal; }
+	const Mag::CCalibrator & MagCalib() const		{ return m_magcal; }
 
 	// Typed result getters — delegate to sub-calibrators
 

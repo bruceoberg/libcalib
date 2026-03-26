@@ -10,12 +10,29 @@ void CCoordinator::Reset()
 
 void CCoordinator::Start()
 {
-	m_gyrocal.Cancel();
-	m_accelcal.Cancel();
-	m_magcal.Cancel();
+	StartAtPhase(PHASE_Gyro);
+}
 
-	m_phase = PHASE_Gyro;
-	m_gyrocal.Start();
+void CCoordinator::StartAtPhase(PHASE phase)
+{
+	// Cancel from the target phase onward; earlier phases keep their results
+
+	if (phase <= PHASE_Gyro)
+		m_gyrocal.Cancel();
+	if (phase <= PHASE_Accel)
+		m_accelcal.Cancel();
+	if (phase <= PHASE_Mag)
+		m_magcal.Cancel();
+
+	m_phase = phase;
+
+	switch (phase)
+	{
+	case PHASE_Gyro:	m_gyrocal.Start();		break;
+	case PHASE_Accel:	m_accelcal.Start();		break;
+	case PHASE_Mag:		m_magcal.Start();		break;
+	default:									break;
+	}
 }
 
 void CCoordinator::Cancel()
