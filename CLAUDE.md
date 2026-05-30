@@ -68,24 +68,6 @@ produces calibration output. All display/feedback logic lives in the host, not h
 - `libcalib::Sphere::CFitter` — magnetometer sphere fitting and quality metrics;
   `FHasSolution()` indicates whether a valid calibration has been computed
 
-## Coding style
-
-See `CLAUDE-coding.md` in the repo root for full reference. Key rules:
-
-- Tabs (not spaces), 4-wide
-- `m_` prefix on all class/struct members
-- `g_` prefix on file-static globals; `s_` on function-static variables
-- No `enum class` — plain enums, integer-convertible
-- `ASSERT` / `CASSERT` / `VERIFY` for correctness checks
-- `nullptr` not `NULL`
-- C++ casts only (`static_cast`, `reinterpret_cast`) — never C-style casts
-- `const` on read-only methods and pointed-to data; not on primitive locals
-- `override` on all overridden virtual functions
-- `(void)FTrySomething();` to explicitly discard return values
-- `//` comments only, never `/* */`
-- `BB(username)` for known improvement areas; `NOTE(username)` for non-obvious decisions
-- Functions named `[ReturnTag]VerbNoun`: `FIsValid()`, `AddRawSample()`, `GFieldStrength()`
-
 ## Vendor submodules
 
 All vendored dependencies live under `vendor/`:
